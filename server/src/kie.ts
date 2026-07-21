@@ -1,20 +1,25 @@
 /**
  * kie.ai client. Runs server-side only — the API key must never reach the app.
  *
- * Endpoints per https://docs.kie.ai/4o-image-api/quickstart:
- *   POST /api/v1/gpt4o-image/generate     -> { data: { taskId } }
- *   GET  /api/v1/gpt4o-image/record-info  -> successFlag 0 pending | 1 done | 2 failed
+ * Uses the unified jobs API, verified against a live key:
+ *   POST /api/v1/jobs/createTask            -> { data: { taskId } }
+ *   GET  /api/v1/jobs/recordInfo?taskId=..  -> { data: { state, resultJson, failMsg } }
+ *
+ * Note the older /api/v1/gpt4o-image/* endpoints exist in kie.ai's docs but
+ * returned "not authorized to use this model" for our key — the jobs API with
+ * an explicit model name is the one that works.
  */
 
 const BASE = 'https://api.kie.ai';
+
+/** Verified as available. Others (nano-banana, qwen) returned 401 for our key. */
+export const IMAGE_MODEL = 'gpt-image-2-text-to-image';
 
 export class KieError extends Error {}
 
 function apiKey(): string {
   const key = process.env.KIE_API_KEY?.trim();
-  if (!key) {
-    throw new KieError('KIE_API_KEY is not set — add it to server/.env');
-  }
+  if (!key) throw new KieError('KIE_API_KEY is not set — add it to server/.env');
   return key;
 }
 
@@ -30,35 +35,45 @@ async function kieFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   const body = (await response.json().catch(() => null)) as any;
 
-  if (!response.ok || (body && body.code && body.code !== 200)) {
+  if (!response.ok || (body?.code && body.code !== 200)) {
     throw new KieError(body?.msg ?? `kie.ai returned ${response.status}`);
   }
   return body as T;
 }
 
-/** Builds the prompt server-side so it can be tuned without an app release. */
+/** Remaining credits on the account. */
+export async function getCredits(): Promise<number | null> {
+  try {
+    const body = await kieFetch<{ data: number }>('/api/v1/chat/credit');
+    return typeof body.data === 'number' ? body.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Built server-side so the prompt can be tuned without an app release. */
 export function imagePromptFor(input: {
   title: string;
   cuisine?: string;
   ingredients?: string[];
 }): string {
-  const parts = [
+  return [
     `Overhead food photograph of ${input.title}`,
     input.cuisine ? `${input.cuisine} cuisine` : null,
     input.ingredients?.length ? `featuring ${input.ingredients.slice(0, 5).join(', ')}` : null,
     'natural window light, shallow depth of field, styled on a ceramic plate,',
     'warm neutral background, appetising, photorealistic, no text, no hands',
-  ];
-  return parts.filter(Boolean).join(', ');
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
 
-export async function startImageGeneration(prompt: string, callBackUrl?: string) {
-  const body = await kieFetch<{ data: { taskId: string } }>('/api/v1/gpt4o-image/generate', {
+export async function startImageGeneration(prompt: string, callBackUrl?: string): Promise<string> {
+  const body = await kieFetch<{ data: { taskId: string } }>('/api/v1/jobs/createTask', {
     method: 'POST',
     body: JSON.stringify({
-      prompt,
-      size: '1:1',
-      nVariants: 1,
+      model: IMAGE_MODEL,
+      input: { prompt, aspect_ratio: '1:1' },
       ...(callBackUrl ? { callBackUrl } : {}),
     }),
   });
@@ -68,28 +83,34 @@ export async function startImageGeneration(prompt: string, callBackUrl?: string)
 }
 
 export type KieTaskStatus =
-  | { status: 'pending'; progress?: number }
+  | { status: 'pending'; state: string }
   | { status: 'ready'; urls: string[] }
   | { status: 'failed'; error: string };
 
+/** States that mean "still working". Anything else is terminal. */
+const PENDING_STATES = new Set(['waiting', 'queuing', 'queueing', 'generating', 'processing']);
+
 export async function getImageStatus(taskId: string): Promise<KieTaskStatus> {
   const body = await kieFetch<{
-    data?: {
-      successFlag?: number;
-      progress?: string | number;
-      errorMessage?: string;
-      response?: { result_urls?: string[] };
-    };
-  }>(`/api/v1/gpt4o-image/record-info?taskId=${encodeURIComponent(taskId)}`);
+    data?: { state?: string; resultJson?: string; failMsg?: string | null };
+  }>(`/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`);
 
   const data = body?.data;
-  const flag = data?.successFlag;
+  const state = data?.state ?? 'unknown';
 
-  if (flag === 1) {
-    const urls = data?.response?.result_urls ?? [];
-    if (!urls.length) return { status: 'failed', error: 'Completed with no images' };
-    return { status: 'ready', urls };
+  if (PENDING_STATES.has(state)) return { status: 'pending', state };
+
+  if (state === 'success') {
+    // resultJson is a JSON *string*, not an object.
+    try {
+      const parsed = JSON.parse(data?.resultJson ?? '{}') as { resultUrls?: string[] };
+      const urls = parsed.resultUrls ?? [];
+      if (!urls.length) return { status: 'failed', error: 'Completed with no images' };
+      return { status: 'ready', urls };
+    } catch {
+      return { status: 'failed', error: 'Could not read the result payload' };
+    }
   }
-  if (flag === 2) return { status: 'failed', error: data?.errorMessage ?? 'Generation failed' };
-  return { status: 'pending', progress: Number(data?.progress ?? 0) };
+
+  return { status: 'failed', error: data?.failMsg || `Generation ${state}` };
 }

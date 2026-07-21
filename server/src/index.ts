@@ -4,7 +4,7 @@ import cors from 'cors';
 import express from 'express';
 
 import { extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
-import { getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
+import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { storeImage, uploadDir } from './storage.js';
 
 /**
@@ -67,10 +67,14 @@ setInterval(
  * Recipes
  * ------------------------------------------------------------------ */
 
-app.get('/health', (_req, res) => {
+app.get('/health', async (_req, res) => {
+  const configured = Boolean(process.env.KIE_API_KEY?.trim());
   res.json({
     ok: true,
-    kieConfigured: Boolean(process.env.KIE_API_KEY?.trim()),
+    kieConfigured: configured,
+    // Image generation costs credits, so surface the balance rather than
+    // discovering it's empty mid-import.
+    kieCredits: configured ? await getCredits() : null,
     publicUrl: PUBLIC_URL,
   });
 });
