@@ -20,7 +20,12 @@ export type HeuristicRecipe = {
   confidence: number;
 };
 
-const INGREDIENT_HEADING = /^\s*(?:#+\s*)?(ingredients?|you(?:'ll)? need|shopping list|what you need)\b\s*:?\s*$/i;
+/**
+ * Anything that introduces a list of ingredients. Captions routinely label
+ * sub-recipes ("Sauce:", "For the topping") rather than saying "Ingredients".
+ */
+const INGREDIENT_HEADING =
+  /^\s*(?:#+\s*)?(ingredients?|you(?:'ll)? need|shopping list|what you need|recipe|sauce|topping|filling|marinade|dressing|for the [a-z ]{2,20})\b\s*:?\s*$/i;
 const METHOD_HEADING = /^\s*(?:#+\s*)?(method|instructions?|directions?|steps?|how to(?: make)?)\b\s*:?\s*$/i;
 
 /** Leading bullet, dash, or "1." / "1)" numbering. */
@@ -37,16 +42,90 @@ function cleanLine(line: string): string {
     .trim();
 }
 
+/**
+ * A caption's first sentence is its title; the rest is the recipe. Without this
+ * the whole caption ends up in the title field.
+ */
+function shortTitle(raw: string): string {
+  const first = raw.split(/(?<=[.!?])\s|\n/)[0].trim();
+  const candidate = first.length >= 8 ? first : raw.trim();
+  return candidate.length > 80 ? `${candidate.slice(0, 77).trimEnd()}…` : candidate;
+}
+
 /** A line that starts with a quantity is almost certainly an ingredient. */
 function looksLikeIngredient(line: string): boolean {
   return /^\s*(?:[-–—•*·▢□]\s*)?(?:\d+[\d/.\s]*|½|⅓|⅔|¼|¾|⅛)\s*\S/.test(line);
 }
 
+/**
+ * Section headings used to break up a single-line caption.
+ *
+ * "Ingredients"/"Method" are unambiguous, so they stand alone. Words like
+ * "sauce" and "filling" are ordinary nouns too, so they only count as a heading
+ * when followed by a colon — otherwise "coat in sauce." gets torn in half.
+ */
+const HEADING_WORDS = new RegExp(
+  [
+    String.raw`\b(?:ingredients?|method|instructions?|directions?|steps?|you(?:'ll)? need)\b\s*:?`,
+    String.raw`\b(?:recipe|sauce|topping|filling|marinade|dressing|glaze|batter)\s*:`,
+    String.raw`\bfor the [a-z ]{2,20}:`,
+  ].join('|'),
+  'gi'
+);
+
+/**
+ * Boundary between two ingredients in an unpunctuated run.
+ *
+ * Splits only where a *word* ends and a number begins, which is what keeps
+ * ranges and mixed fractions intact: in "4–5 cloves" and "1½ tsp" the digit is
+ * preceded by a digit, not a letter, so no split happens inside them.
+ */
+const QUANTITY_START = /(?<=[A-Za-z)\]&%])\s+(?=(?:\d|½|¼|¾|⅓|⅔|⅛))/g;
+
+/**
+ * TikTok's oEmbed returns the caption with newlines stripped, so a complete
+ * recipe arrives as a single line. Rebuild the structure: break before section
+ * headings, then split ingredient runs at each quantity and method runs at
+ * sentence ends.
+ */
+function explodeInlineCaption(caption: string): string[] {
+  // 1. Put every heading on its own line.
+  const withHeadings = caption.replace(HEADING_WORDS, (m) => `\n${m.trim()}\n`);
+
+  const out: string[] = [];
+  let mode: 'ingredients' | 'method' = 'ingredients';
+
+  for (const segment of withHeadings.split('\n').map((s) => s.trim()).filter(Boolean)) {
+    if (INGREDIENT_HEADING.test(segment)) {
+      out.push(segment);
+      mode = 'ingredients';
+      continue;
+    }
+    if (METHOD_HEADING.test(segment)) {
+      out.push(segment);
+      mode = 'method';
+      continue;
+    }
+
+    if (mode === 'method') {
+      // Sentences are the natural step boundary in prose method text.
+      out.push(...segment.split(/(?<=[.!?])\s+(?=[A-Z(])/).map((s) => s.trim()).filter(Boolean));
+    } else {
+      out.push(...segment.split(QUANTITY_START).map((s) => s.trim()).filter(Boolean));
+    }
+  }
+
+  return out;
+}
+
 export function parseCaption(caption: string, fallbackTitle?: string): HeuristicRecipe | null {
-  const rawLines = caption
-    .split(/\r?\n/)
-    .map(cleanLine)
-    .filter(Boolean);
+  let rawLines = caption.split(/\r?\n/).map(cleanLine).filter(Boolean);
+
+  // A caption delivered as one or two long lines needs structure rebuilding
+  // before any of the line-based logic below can work.
+  if (rawLines.length < 3 && caption.length > 120) {
+    rawLines = explodeInlineCaption(cleanLine(caption)).map(cleanLine).filter(Boolean);
+  }
 
   if (rawLines.length < 3) return null;
 
@@ -95,10 +174,11 @@ export function parseCaption(caption: string, fallbackTitle?: string): Heuristic
   // Too little structure to be trustworthy — let the LLM try instead.
   if (ingredients.length < 2) return null;
 
-  const title =
-    fallbackTitle?.trim() ||
-    rawLines.find((l) => l.length > 4 && l.length < 80 && !looksLikeIngredient(l)) ||
-    'Imported recipe';
+  const title = shortTitle(
+    fallbackTitle ||
+      rawLines.find((l) => l.length > 4 && !looksLikeIngredient(l)) ||
+      'Imported recipe'
+  );
 
   // Headings and real steps both raise confidence; a bare list is weaker.
   let confidence = 0.4;
