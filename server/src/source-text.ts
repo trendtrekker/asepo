@@ -18,15 +18,25 @@ export type SourceText = {
   platform: string;
 };
 
+const NAMED_ENTITIES: Record<string, string> = {
+  '&quot;': '"',
+  '&apos;': "'",
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&nbsp;': ' ',
+};
+
+/**
+ * Meta tags arrive HTML-escaped. Instagram in particular encodes emoji and
+ * smart quotes as numeric entities (&#x1f60d;, &#x2019;), which would otherwise
+ * end up in ingredient names verbatim.
+ */
 const decode = (s: string) =>
   s
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&(?:quot|apos|amp|lt|gt|nbsp);/g, (m) => NAMED_ENTITIES[m] ?? m)
     .replace(/\\n/g, '\n');
 
 function meta(html: string, property: string): string | undefined {

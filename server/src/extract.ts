@@ -157,7 +157,7 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
 
   if (!source.text || source.text.length < 40) {
     throw new ExtractionError(
-      `There was no readable recipe text at that ${platform} link. Private posts and some sites block automated access — pasting the caption works.`
+      `There was no readable text at that ${platform} link. Private posts and some sites block automated access — pasting the caption works.`
     );
   }
 
@@ -194,8 +194,11 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
     };
   }
 
+  // We read the post fine — its caption just doesn't contain a written recipe.
+  // Common on Reels and TikToks where the method is only spoken aloud. Saying
+  // "try pasting it" would be useless advice when there is nothing to paste.
   throw new ExtractionError(
-    'Could not find a recipe in that post. Try pasting the caption text directly.'
+    `We read that ${platform} post, but its caption has no ingredients or steps in it — the recipe may only be spoken in the video. You can type it in by hand.`
   );
 }
 
