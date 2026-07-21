@@ -1,11 +1,18 @@
+import { assertPublicUrl, fetchHtml, FetchError } from './fetch-page.js';
+import { parseCaption } from './heuristic.js';
 import { parseIngredient, parseIsoDuration, parseYield, type Ingredient } from './ingredients.js';
+import { extractWithLlm, isLlmConfigured, LlmError } from './llm.js';
+import { gatherSourceText, platformOf } from './source-text.js';
 
 /**
- * Recipe extraction from a URL.
+ * Recipe extraction, in order of trustworthiness:
  *
- * Most recipe sites publish schema.org/Recipe as JSON-LD, which is exact and
- * free — no AI needed. Social video (TikTok, Instagram) does not, and needs an
- * LLM over the caption and transcript; that path is not wired up yet.
+ *   1. JSON-LD (schema.org/Recipe) — authored by the site, so exact and free.
+ *   2. LLM over the caption/page text — handles TikTok, Instagram, prose pages.
+ *   3. Heuristic caption parsing — no AI, exploits the near-universal
+ *      "INGREDIENTS / METHOD" caption format.
+ *
+ * Each strategy reports a confidence the app surfaces to the user.
  */
 
 export type ExtractedRecipe = {
@@ -18,53 +25,25 @@ export type ExtractedRecipe = {
   imageUrl?: string;
   source?: { handle: string; platform: string };
   confidence?: number;
+  /** Which strategy produced this, for debugging and telemetry. */
+  strategy?: 'json-ld' | 'llm' | 'heuristic';
 };
 
 export class ExtractionError extends Error {}
 
-/**
- * Refuses URLs pointing at our own network. Without this the server would
- * happily fetch http://169.254.169.254/ (cloud metadata) or internal hosts on
- * behalf of anyone who can call /import.
- */
-function assertPublicUrl(raw: string): URL {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new ExtractionError('That does not look like a valid link');
-  }
+/* ------------------------------------------------------------------ *
+ * 1. JSON-LD
+ * ------------------------------------------------------------------ */
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new ExtractionError('Only http and https links are supported');
-  }
-
-  const host = url.hostname.toLowerCase();
-  const blocked =
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host === '::1' ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
-
-  if (blocked) throw new ExtractionError('That host is not reachable');
-  return url;
-}
-
-/** Pulls every JSON-LD block out of the HTML. */
 function jsonLdBlocks(html: string): unknown[] {
   const blocks: unknown[] = [];
   const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
-
   while ((m = re.exec(html))) {
     try {
       blocks.push(JSON.parse(m[1].trim()));
     } catch {
-      // Sites ship malformed JSON-LD surprisingly often — skip rather than fail.
+      // Malformed JSON-LD is common — skip rather than fail the whole import.
     }
   }
   return blocks;
@@ -75,14 +54,11 @@ const typeOf = (node: any): string[] => {
   return Array.isArray(t) ? t.map(String) : t ? [String(t)] : [];
 };
 
-/** Walks graphs and arrays looking for the Recipe node. */
 function findRecipeNode(input: unknown): any | null {
   const queue: any[] = [input];
-
   while (queue.length) {
     const node = queue.shift();
     if (!node || typeof node !== 'object') continue;
-
     if (Array.isArray(node)) {
       queue.push(...node);
       continue;
@@ -94,9 +70,6 @@ function findRecipeNode(input: unknown): any | null {
 }
 
 function instructionsFrom(node: any): string[] {
-  const raw = node?.recipeInstructions;
-  if (!raw) return [];
-
   const flatten = (item: any): string[] => {
     if (typeof item === 'string') return [item];
     if (Array.isArray(item)) return item.flatMap(flatten);
@@ -105,8 +78,7 @@ function instructionsFrom(node: any): string[] {
     if (typeof item?.name === 'string') return [item.name];
     return [];
   };
-
-  return flatten(raw)
+  return flatten(node?.recipeInstructions ?? [])
     .map((s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 }
@@ -127,44 +99,16 @@ function caloriesFrom(node: any): number | undefined {
   return m ? Number(m[0]) : undefined;
 }
 
-export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
-  const url = assertPublicUrl(rawUrl);
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-
-  let html: string;
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        // Some sites serve a stub to unknown agents.
-        'user-agent': 'Mozilla/5.0 (compatible; AsepoBot/1.0; +https://asepo.app)',
-        accept: 'text/html,application/xhtml+xml',
-      },
-    });
-    if (!response.ok) throw new ExtractionError(`The site returned ${response.status}`);
-    html = await response.text();
-  } catch (e) {
-    if (e instanceof ExtractionError) throw e;
-    throw new ExtractionError('Could not load that page');
-  } finally {
-    clearTimeout(timeout);
-  }
-
+function fromJsonLd(html: string, url: URL): ExtractedRecipe | null {
   const node = jsonLdBlocks(html).map(findRecipeNode).find(Boolean);
-
-  if (!node) {
-    throw new ExtractionError(
-      'No structured recipe found on that page. Social video needs the LLM extractor, which is not wired up yet.'
-    );
-  }
+  if (!node) return null;
 
   const ingredients = (node.recipeIngredient ?? node.ingredients ?? [])
     .filter((l: unknown): l is string => typeof l === 'string')
     .map(parseIngredient);
 
   const instructions = instructionsFrom(node);
+  if (!ingredients.length && !instructions.length) return null;
 
   return {
     title: typeof node.name === 'string' ? node.name.trim() : 'Imported recipe',
@@ -174,8 +118,113 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
     servings: parseYield(node.recipeYield),
     calories: caloriesFrom(node),
     imageUrl: imageFrom(node),
-    source: { handle: url.hostname.replace(/^www\./, ''), platform: 'Web' },
-    // JSON-LD is authored by the site, so it's exact rather than inferred.
+    source: { handle: url.hostname.replace(/^www\./, ''), platform: platformOf(url) },
     confidence: 1,
+    strategy: 'json-ld',
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Orchestration
+ * ------------------------------------------------------------------ */
+
+export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
+  const url = assertPublicUrl(rawUrl);
+  const platform = platformOf(url);
+
+  // Social platforms never carry JSON-LD, so don't waste a fetch on them.
+  if (platform === 'Web' || platform === 'Pinterest') {
+    try {
+      const html = await fetchHtml(url);
+      const structured = fromJsonLd(html, url);
+      if (structured) return structured;
+    } catch (e) {
+      // A blocked page can still yield something via oEmbed/OpenGraph below.
+      if (!(e instanceof FetchError)) throw e;
+    }
+  }
+
+  let source;
+  try {
+    source = await gatherSourceText(url);
+  } catch (e) {
+    throw new ExtractionError(
+      e instanceof FetchError
+        ? `${e.message}. Try pasting the recipe text instead.`
+        : 'Could not read that link'
+    );
+  }
+
+  if (!source.text || source.text.length < 40) {
+    throw new ExtractionError(
+      `There was no readable recipe text at that ${platform} link. Private posts and some sites block automated access — pasting the caption works.`
+    );
+  }
+
+  const handle = source.author ?? url.hostname.replace(/^www\./, '');
+
+  // 2. LLM, when one is configured and reachable.
+  if (isLlmConfigured()) {
+    try {
+      const llm = await extractWithLlm(source.text, source.title);
+      return {
+        ...llm,
+        imageUrl: source.imageUrl,
+        source: { handle, platform },
+        confidence: 0.75,
+        strategy: 'llm',
+      };
+    } catch (e) {
+      // Fall through to the heuristic; a model outage shouldn't fail the import.
+      if (!(e instanceof LlmError)) throw e;
+    }
+  }
+
+  // 3. Heuristic caption parsing.
+  const heuristic = parseCaption(source.text, source.title);
+  if (heuristic) {
+    return {
+      title: heuristic.title,
+      ingredients: heuristic.ingredients,
+      instructions: heuristic.instructions,
+      imageUrl: source.imageUrl,
+      source: { handle, platform },
+      confidence: heuristic.confidence,
+      strategy: 'heuristic',
+    };
+  }
+
+  throw new ExtractionError(
+    'Could not find a recipe in that post. Try pasting the caption text directly.'
+  );
+}
+
+/** Import from text the user pasted — same strategies, no fetching. */
+export async function extractFromText(text: string): Promise<ExtractedRecipe> {
+  if (!text || text.trim().length < 40) {
+    throw new ExtractionError('That text is too short to be a recipe');
+  }
+
+  if (isLlmConfigured()) {
+    try {
+      const llm = await extractWithLlm(text);
+      return { ...llm, confidence: 0.75, strategy: 'llm', source: { handle: 'Pasted text', platform: 'Manual' } };
+    } catch (e) {
+      if (!(e instanceof LlmError)) throw e;
+    }
+  }
+
+  const heuristic = parseCaption(text);
+  if (heuristic) {
+    return {
+      title: heuristic.title,
+      ingredients: heuristic.ingredients,
+      instructions: heuristic.instructions,
+      confidence: heuristic.confidence,
+      strategy: 'heuristic',
+      source: { handle: 'Pasted text', platform: 'Manual' },
+    };
+  }
+
+  throw new ExtractionError('Could not find a recipe in that text');
 }

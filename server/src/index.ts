@@ -3,7 +3,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
-import { extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
+import { extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { storeImage, uploadDir } from './storage.js';
 
@@ -107,12 +107,16 @@ app.post('/import', (req, res) => {
     };
 
     try {
-      if (source.kind !== 'url' || !source.url) {
-        throw new ExtractionError('Only link imports are supported so far');
-      }
-
       advance(0);
-      const recipe = await extractFromUrl(source.url);
+
+      let recipe: ExtractedRecipe;
+      if (source.kind === 'url' && source.url) {
+        recipe = await extractFromUrl(source.url);
+      } else if (source.kind === 'text' && source.text) {
+        recipe = await extractFromText(source.text);
+      } else {
+        throw new ExtractionError('Send either a link or some recipe text');
+      }
 
       // The fetch is the slow part; the remaining steps are near-instant, but
       // the app shows them, so surface them in order rather than jumping.
