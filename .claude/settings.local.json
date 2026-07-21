@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:apps.apple.com)",
+      "Bash(wc -c C:/Users/zayns/.claude/projects/C--Users-zayns-Desktop-Asepo-app/041be4c7-34b0-4071-96a4-560826d81b7b/tool-results/toolu_01KePc9PisZNwhhqSsqXizhn.txt)",
+      "Bash(echo \"--- screen labels ---\")",
+      "Bash(grep -o 'label:[^,}]*' C:/Users/zayns/.claude/projects/C--Users-zayns-Desktop-Asepo-app/041be4c7-34b0-4071-96a4-560826d81b7b/tool-results/toolu_01KePc9PisZNwhhqSsqXizhn.txt)",
+      "Bash(grep -o 'SCREENS[^;]\\\\{0,600\\\\}' C:/Users/zayns/.claude/projects/C--Users-zayns-Desktop-Asepo-app/041be4c7-34b0-4071-96a4-560826d81b7b/tool-results/toolu_01KePc9PisZNwhhqSsqXizhn.txt)",
+      "Bash(grep -o 'navItems[^;]\\\\{0,400\\\\}' C:/Users/zayns/.claude/projects/C--Users-zayns-Desktop-Asepo-app/041be4c7-34b0-4071-96a4-560826d81b7b/tool-results/toolu_01KePc9PisZNwhhqSsqXizhn.txt)",
+      "Bash(grep -o 'NAV_LABELS[^]]\\\\{0,500\\\\}]' C:/Users/zayns/.claude/projects/C--Users-zayns-Desktop-Asepo-app/041be4c7-34b0-4071-96a4-560826d81b7b/tool-results/toolu_01KePc9PisZNwhhqSsqXizhn.txt)"
+    ]
+  }
+}
