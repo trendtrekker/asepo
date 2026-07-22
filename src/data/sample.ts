@@ -50,17 +50,17 @@ export const WELCOME_PAGES = [
   {
     headline: 'Save any recipe',
     body: 'Import from TikTok, Instagram, or any website in one tap.',
-    caption: 'share sheet mockup\n(TikTok / Instagram / Safari)',
+    image: require('../../assets/images/save-any-recipe.png'),
   },
   {
     headline: 'Plan your week',
     body: 'Drag recipes onto your calendar and never wonder what’s for dinner.',
-    caption: 'weekly calendar mockup\n(recipe cards per day)',
+    image: require('../../assets/images/plan-your-week.png'),
   },
   {
     headline: 'Shop smarter',
     body: 'We build your grocery list automatically, grouped by aisle.',
-    caption: 'grocery list mockup\n(grouped by aisle)',
+    image: require('../../assets/images/shop-smarter.png'),
   },
 ];
 

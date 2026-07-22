@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, PhotoPlaceholder, Screen } from '@/components/ui';
+import { Button, Screen } from '@/components/ui';
 import { WELCOME_PAGES } from '@/data/sample';
 import { useColors } from '@/theme/theme-context';
 
@@ -30,28 +30,21 @@ export default function Welcome() {
       </View>
 
       <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 8 }}>
-        <PhotoPlaceholder
+        <Image
+          source={current.image}
+          // React Native's own Image, not expo-image: on web the latter never
+          // starts fetching a require()d asset, leaving it stuck at opacity 0.
+          // The artwork is portrait and pre-framed, so contain keeps the whole
+          // composition visible rather than cropping the logo out.
+          resizeMode="contain"
+          accessibilityLabel={current.headline}
           style={{
             flex: 1,
             minHeight: 260,
+            width: '100%',
             borderRadius: 20,
-            borderWidth: 1,
-            borderColor: c.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text
-            style={{
-              fontSize: 11,
-              fontWeight: '600',
-              color: c.textSec,
-              textAlign: 'center',
-              paddingHorizontal: 20,
-              fontFamily: 'monospace',
-            }}>
-            {current.caption}
-          </Text>
-        </PhotoPlaceholder>
+          }}
+        />
 
         <Text
           style={{
