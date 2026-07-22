@@ -171,7 +171,11 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
         ...llm,
         imageUrl: source.imageUrl,
         source: { handle, platform },
-        confidence: 0.75,
+        // Measurably better than the heuristic on real captions: it separates
+        // unquantified ingredients ("Salt & pepper"), preserves ranges, and
+        // keeps section labels out of the step list. Below JSON-LD, which is
+        // authored by the site rather than inferred.
+        confidence: 0.9,
         strategy: 'llm',
       };
     } catch (e) {
@@ -211,7 +215,7 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
   if (isLlmConfigured()) {
     try {
       const llm = await extractWithLlm(text);
-      return { ...llm, confidence: 0.75, strategy: 'llm', source: { handle: 'Pasted text', platform: 'Manual' } };
+      return { ...llm, confidence: 0.9, strategy: 'llm', source: { handle: 'Pasted text', platform: 'Manual' } };
     } catch (e) {
       if (!(e instanceof LlmError)) throw e;
     }

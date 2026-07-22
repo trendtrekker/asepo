@@ -3,14 +3,17 @@ import type { Ingredient } from './ingredients.js';
 /**
  * LLM-backed recipe extraction.
  *
- * Provider-agnostic on purpose: kie.ai's chat API speaks the OpenAI message
- * format, and so do OpenAI, OpenRouter, Groq and most others. Point
- * LLM_BASE_URL / LLM_MODEL / LLM_API_KEY wherever you like.
+ * kie.ai exposes chat models through two different protocols, both verified
+ * against a live key:
  *
- * Defaults to kie.ai with deepseek-chat, which is the only chat model our key
- * was accepted for — note it was returning "server is currently being
- * maintained" at the time of writing, so failures here are expected until it's
- * back, and callers fall through to the heuristic parser.
+ *   responses  POST /codex/v1/responses    { model, input: [{role, content:[{type:'input_text',text}]}] }
+ *              works for gpt-5-5, gpt-5-4, grok-4-5
+ *   messages   POST /claude/v1/messages    { model, messages: [...] }   (Anthropic shape)
+ *              works for claude-fable-5
+ *   chat       POST /v1/chat/completions   { model, messages: [...] }   (OpenAI shape)
+ *              for pointing at OpenAI/OpenRouter directly
+ *
+ * Note the model ids use hyphens throughout: "gpt-5-5", not "gpt-5.5".
  */
 
 export type LlmRecipe = {
@@ -23,9 +26,12 @@ export type LlmRecipe = {
 
 export class LlmError extends Error {}
 
+type Protocol = 'responses' | 'messages' | 'chat';
+
 const config = () => ({
-  baseUrl: (process.env.LLM_BASE_URL ?? 'https://api.kie.ai/api/v1').replace(/\/$/, ''),
-  model: process.env.LLM_MODEL ?? 'deepseek-chat',
+  baseUrl: (process.env.LLM_BASE_URL ?? 'https://api.kie.ai/codex/v1').replace(/\/$/, ''),
+  model: process.env.LLM_MODEL ?? 'gpt-5-5',
+  protocol: (process.env.LLM_PROTOCOL ?? 'responses') as Protocol,
   apiKey: (process.env.LLM_API_KEY ?? process.env.KIE_API_KEY ?? '').trim(),
 });
 
@@ -50,22 +56,75 @@ Rules:
 - Split each ingredient into quantity, unit and name. Use "" when a part is absent.
   "2 cups flour" -> {"qty":"2","unit":"cups","name":"flour"}
   "a handful of basil" -> {"qty":"","unit":"","name":"a handful of basil"}
+- Every distinct ingredient gets its own entry. Never merge two ingredients into
+  one line, even when the caption runs them together without punctuation.
 - Keep the author's wording for ingredient names and steps. Do not invent
   quantities, steps, times or servings that are not stated. Use null when unknown.
+- The title is the dish name only, not the caption's first sentence.
 - Split run-on instructions into separate steps. Strip emoji and hashtags.`;
 
-type ChatResponse = {
-  choices?: { message?: { content?: string } }[];
-  data?: { choices?: { message?: { content?: string } }[] };
-  msg?: string;
-  code?: number;
-};
+/** Pulls the assistant's text out of whichever response shape came back. */
+function textFrom(body: any): string | undefined {
+  // Responses API
+  if (typeof body?.output_text === 'string' && body.output_text.trim()) return body.output_text;
+  if (Array.isArray(body?.output)) {
+    const joined = body.output
+      .flatMap((o: any) => o?.content ?? [])
+      .map((c: any) => c?.text)
+      .filter(Boolean)
+      .join('');
+    if (joined.trim()) return joined;
+  }
+  // Anthropic messages
+  if (Array.isArray(body?.content)) {
+    const joined = body.content.map((c: any) => c?.text).filter(Boolean).join('');
+    if (joined.trim()) return joined;
+  }
+  // OpenAI chat completions
+  const chat = body?.choices?.[0]?.message?.content ?? body?.data?.choices?.[0]?.message?.content;
+  if (typeof chat === 'string' && chat.trim()) return chat;
+
+  return undefined;
+}
+
+function buildRequest(protocol: Protocol, model: string, system: string, user: string) {
+  switch (protocol) {
+    case 'responses':
+      return {
+        path: '/responses',
+        body: {
+          model,
+          stream: false,
+          input: [
+            { role: 'system', content: [{ type: 'input_text', text: system }] },
+            { role: 'user', content: [{ type: 'input_text', text: user }] },
+          ],
+        },
+      };
+    case 'messages':
+      return {
+        path: '/messages',
+        body: { model, max_tokens: 4096, system, messages: [{ role: 'user', content: user }] },
+      };
+    case 'chat':
+      return {
+        path: '/chat/completions',
+        body: {
+          model,
+          temperature: 0,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+        },
+      };
+  }
+}
 
 /** Pulls the JSON object out of a reply that may be fenced or padded with prose. */
 function parseJsonReply(raw: string): any {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = (fenced ? fenced[1] : raw).trim();
-
   try {
     return JSON.parse(candidate);
   } catch {
@@ -77,47 +136,37 @@ function parseJsonReply(raw: string): any {
 }
 
 export async function extractWithLlm(sourceText: string, hintTitle?: string): Promise<LlmRecipe> {
-  const { baseUrl, model, apiKey } = config();
+  const { baseUrl, model, protocol, apiKey } = config();
   if (!apiKey) throw new LlmError('No LLM API key configured');
 
-  const userContent = [
-    hintTitle ? `Title hint: ${hintTitle}` : null,
-    'Text:',
-    sourceText.slice(0, 12_000),
-  ]
+  const user = [hintTitle ? `Title hint: ${hintTitle}` : null, 'Text:', sourceText.slice(0, 12_000)]
     .filter(Boolean)
     .join('\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
+  const { path, body } = buildRequest(protocol, model, SYSTEM_PROMPT, user);
 
-  let body: ChatResponse | null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90_000);
+
+  let payload: any;
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-        ],
-        temperature: 0,
-      }),
+      body: JSON.stringify(body),
     });
-    body = (await response.json().catch(() => null)) as ChatResponse | null;
+    payload = await response.json().catch(() => null);
   } catch {
     throw new LlmError('Could not reach the language model');
   } finally {
     clearTimeout(timer);
   }
 
-  const content = body?.choices?.[0]?.message?.content ?? body?.data?.choices?.[0]?.message?.content;
-
+  const content = textFrom(payload);
   if (!content) {
-    // kie.ai returns HTTP 200 with an error in the body, so check `msg`.
-    throw new LlmError(body?.msg ?? 'The language model returned nothing');
+    // kie.ai returns HTTP 200 with the error in the body.
+    throw new LlmError(payload?.error?.message ?? payload?.msg ?? 'The language model returned nothing');
   }
 
   const parsed = parseJsonReply(content);
