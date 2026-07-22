@@ -94,20 +94,24 @@ export default function RecipeDetail() {
             {[
               timeLabel(recipe),
               `Serves ${servings}`,
-              calLabel(recipe),
+              // Imported recipes often carry no calorie data; a "0 cal" pill
+              // would read as a claim rather than missing information.
+              recipe.calories > 0 ? calLabel(recipe) : null,
               recipe.difficulty,
-            ].map((label) => (
-              <View
-                key={label}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 13,
-                  borderRadius: 14,
-                  backgroundColor: c.chipBg,
-                }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: c.text }}>{label}</Text>
-              </View>
-            ))}
+            ]
+              .filter((label): label is string => Boolean(label))
+              .map((label) => (
+                <View
+                  key={label}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 13,
+                    borderRadius: 14,
+                    backgroundColor: c.chipBg,
+                  }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: c.text }}>{label}</Text>
+                </View>
+              ))}
           </View>
 
           {/* Recipe actions — sit above the tabs so they apply to the whole

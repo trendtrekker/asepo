@@ -123,7 +123,18 @@ app.post('/import', (req, res) => {
       advance(2);
       await new Promise((r) => setTimeout(r, 250));
       advance(3);
-      await new Promise((r) => setTimeout(r, 250));
+
+      // Re-host the source image. Social CDNs hand out *signed, expiring* URLs
+      // — a TikTok thumbnail carries x-signature and x-expires roughly two days
+      // out — so storing the original would leave every imported recipe
+      // pictureless within days. Same reason we re-host kie.ai's output.
+      if (recipe.imageUrl) {
+        try {
+          recipe.imageUrl = await storeImage(recipe.imageUrl, PUBLIC_URL);
+        } catch {
+          delete recipe.imageUrl;
+        }
+      }
 
       job.recipe = recipe;
       job.status = 'ready';

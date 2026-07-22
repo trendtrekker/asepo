@@ -9,10 +9,9 @@ import { Button, Screen } from '@/components/ui';
 import {
   ALL_INGREDIENTS,
   ALL_TAGS,
-  calLabel,
+  metaLine,
   RECENT_SEARCHES,
   SUGGESTED_SEARCHES,
-  timeLabel,
 } from '@/data/sample';
 import { searchRecipes } from '@/lib/filter-recipes';
 import { useStore } from '@/store/app-store';
@@ -134,7 +133,7 @@ export default function Search() {
                           {r.title}
                         </Text>
                         <Text style={{ marginTop: 2, fontSize: 12.5, color: c.textSec }}>
-                          {timeLabel(r)} · {calLabel(r)}
+                          {metaLine(r)}
                         </Text>
                       </View>
                     </View>

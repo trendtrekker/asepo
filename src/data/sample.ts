@@ -37,6 +37,15 @@ export type Recipe = {
 export const timeLabel = (r: Recipe) => `${r.minutes} min`;
 export const calLabel = (r: Recipe) => `${r.calories} cal`;
 
+/**
+ * The "25 min · 520 cal" line under a recipe card.
+ *
+ * Imported recipes often have no calorie data — a TikTok caption rarely states
+ * it — and rendering "0 cal" reads as a claim rather than an absence.
+ */
+export const metaLine = (r: Recipe) =>
+  r.calories > 0 ? `${timeLabel(r)} · ${calLabel(r)}` : timeLabel(r);
+
 export const WELCOME_PAGES = [
   {
     headline: 'Save any recipe',

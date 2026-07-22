@@ -77,20 +77,31 @@ export async function fetchHtml(url: URL, timeoutMs = 15_000): Promise<string> {
   }
 }
 
-/** Fetches JSON with the same politeness, used for oEmbed endpoints. */
-export async function fetchJson<T>(url: string, timeoutMs = 10_000): Promise<T | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { ...BROWSER_HEADERS, accept: 'application/json' },
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+/**
+ * Fetches JSON with the same politeness, used for oEmbed endpoints.
+ *
+ * Retries once: a single dropped request against TikTok's oEmbed otherwise
+ * degrades into a confusing "no readable text" error, because the caller falls
+ * back to scraping HTML that never contains the caption.
+ */
+export async function fetchJson<T>(url: string, timeoutMs = 10_000, attempts = 2): Promise<T | null> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { ...BROWSER_HEADERS, accept: 'application/json' },
+      });
+      if (response.ok) return (await response.json()) as T;
+      // A 4xx won't change on retry; only transient failures are worth repeating.
+      if (response.status < 500) return null;
+    } catch {
+      // Network-level failure — worth one more go.
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt < attempts) await new Promise((r) => setTimeout(r, 1200));
   }
+  return null;
 }

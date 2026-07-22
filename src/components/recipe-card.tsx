@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Heart } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
-import { calLabel, timeLabel, type Recipe } from '@/data/sample';
+import { calLabel, metaLine, timeLabel, type Recipe } from '@/data/sample';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -56,7 +56,7 @@ export function RecipeGridCard({
         {recipe.title}
       </Text>
       <Text style={{ marginTop: 2, fontSize: 12.5, color: c.textSec }}>
-        {timeLabel(recipe)} · {calLabel(recipe)}
+        {metaLine(recipe)}
       </Text>
     </Pressable>
   );
@@ -87,7 +87,7 @@ export function RecipeListRow({ recipe, onPress }: { recipe: Recipe; onPress?: (
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{recipe.title}</Text>
         <Text style={{ marginTop: 3, fontSize: 12.5, color: c.textSec }}>
-          {timeLabel(recipe)} · {calLabel(recipe)} · Serves {recipe.servings}
+          {metaLine(recipe)} · Serves {recipe.servings}
         </Text>
       </View>
       <Pressable
@@ -120,7 +120,7 @@ export function RecipeCarouselCard({ recipe, onPress }: { recipe: Recipe; onPres
         {recipe.title}
       </Text>
       <Text style={{ marginTop: 2, fontSize: 12, color: c.textSec }}>
-        {timeLabel(recipe)} · {calLabel(recipe)}
+        {metaLine(recipe)}
       </Text>
     </Pressable>
   );
