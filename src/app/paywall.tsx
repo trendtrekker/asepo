@@ -1,11 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CheckCircleTinted, Close } from '@/components/icons';
-import { Button, PhotoHero, Screen, ScrimButton } from '@/components/ui';
+import { Button, Screen, ScrimButton } from '@/components/ui';
 import { BENEFITS, PLANS } from '@/data/sample';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -30,11 +30,29 @@ export default function Paywall() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 12 }}>
-        <PhotoHero style={{ height: 220, justifyContent: 'flex-end' }}>
+        {/* position:relative + overflow:hidden are load-bearing: without them
+            react-native-web resolves the absolutely-positioned image against an
+            outer ancestor and it bleeds behind the whole page. */}
+        <View
+          style={{
+            height: 220,
+            justifyContent: 'flex-end',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+          <Image
+            source={require('../../assets/images/paywall-hero.jpg')}
+            resizeMode="cover"
+            accessibilityLabel="Asepo Pro"
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+          />
+          {/* The artwork is bright and the wordmark sits over its lower left,
+              so the scrim starts earlier and goes darker than a photo-only
+              overlay would need. */}
           <LinearGradient
-            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
-            locations={[0.4, 1]}
-            style={StyleSheet.absoluteFill}
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.30)', 'rgba(0,0,0,0.70)']}
+            locations={[0.25, 0.6, 1]}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           />
           <Text
             style={{
@@ -44,10 +62,14 @@ export default function Paywall() {
               fontWeight: '700',
               color: '#fff',
               letterSpacing: -0.4,
+              // Keeps the wordmark legible over the pale wooden table.
+              textShadowColor: 'rgba(0,0,0,0.45)',
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 6,
             }}>
             Asepo Pro
           </Text>
-        </PhotoHero>
+        </View>
 
         <View style={{ paddingHorizontal: 24, paddingTop: 18 }}>
           <View style={{ gap: 11 }}>
