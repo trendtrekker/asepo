@@ -81,3 +81,9 @@ export const radius = {
 
 /** Primary CTA height used on every screen in the design. */
 export const CTA_HEIGHT = 52;
+
+/**
+ * Brand navy, sampled from the icon artwork. Used by the native splash screen
+ * (app.json) and the in-app splash, so the two don't flash different colours.
+ */
+export const BRAND_NAVY = '#1B2C43';
