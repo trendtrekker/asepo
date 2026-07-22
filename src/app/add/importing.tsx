@@ -20,6 +20,12 @@ export default function Importing() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The backend names each stage as it reaches it — "Reading the caption" for a
+   * TikTok, "Reading the page" for a website. Start from the generic list and
+   * replace each entry as the real label arrives.
+   */
+  const [labels, setLabels] = useState<string[]>([...IMPORT_PIPELINE]);
   const pulse = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -41,7 +47,14 @@ export default function Importing() {
 
     api
       .extractRecipe(source, (p) => {
-        if (!cancelled) setStep(p.step);
+        if (cancelled) return;
+        setStep(p.step);
+        // The backend sends its full stage list on the first tick; fall back to
+        // patching individual labels if only one arrives.
+        if (p.labels?.length) setLabels(p.labels);
+        else if (p.label) {
+          setLabels((current) => current.map((existing, i) => (i === p.step ? p.label : existing)));
+        }
       })
       .then((extracted) => {
         if (cancelled) return;
@@ -101,7 +114,7 @@ export default function Importing() {
       </Text>
 
       <View style={{ gap: 14, marginTop: 28, width: '100%' }}>
-        {IMPORT_PIPELINE.map((label, i) => {
+        {labels.map((label, i) => {
           const complete = i < step || (i === step && done);
           const active = i === step && !done;
           return (

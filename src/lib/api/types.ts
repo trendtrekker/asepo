@@ -19,6 +19,14 @@ export type ImportProgress = {
   /** Index into the step list the UI is displaying. */
   step: number;
   label: string;
+  /**
+   * The full stage list for this import, sent up front.
+   *
+   * The UI renders one row per stage, so it needs every label immediately —
+   * polling only ever catches whichever stage happens to be current, and fast
+   * stages are missed entirely.
+   */
+  labels?: string[];
 };
 
 /**

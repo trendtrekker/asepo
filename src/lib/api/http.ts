@@ -62,13 +62,16 @@ export function createHttpApi(baseUrl: string): RecipeApi {
      * animating a guess.
      */
     async extractRecipe(source: ImportSource, onProgress?: (p: ImportProgress) => void) {
-      const { taskId } = await request<{ taskId: string }>(base, '/import', {
+      const { taskId, labels } = await request<{ taskId: string; labels?: string[] }>(base, '/import', {
         method: 'POST',
         body: JSON.stringify(source),
       });
 
       const startedAt = Date.now();
       let lastStep = -1;
+
+      // Hand the UI the full stage list before any polling begins.
+      if (labels?.length) onProgress?.({ step: 0, label: labels[0], labels });
 
       while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
         const status = await request<{

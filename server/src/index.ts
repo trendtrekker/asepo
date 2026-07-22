@@ -35,6 +35,7 @@ type ImportJob = {
   status: 'pending' | 'ready' | 'failed';
   step: number;
   label: string;
+  labels: readonly string[];
   recipe?: ExtractedRecipe;
   error?: string;
   createdAt: number;
@@ -90,20 +91,38 @@ app.get('/recipes', (_req, res) => {
  * Import
  * ------------------------------------------------------------------ */
 
-const PIPELINE = ['Fetching the page', 'Reading the video', 'Finding ingredients', 'Structuring the recipe'];
+/**
+ * Stage names shown in the app. Worded per source so a website import doesn't
+ * claim to be "reading the video".
+ */
+const PIPELINES = {
+  social: ['Fetching the post', 'Reading the caption', 'Finding ingredients', 'Structuring the recipe'],
+  web: ['Fetching the page', 'Reading the recipe', 'Finding ingredients', 'Structuring the recipe'],
+  text: ['Reading your text', 'Finding ingredients', 'Structuring the recipe', 'Checking the result'],
+} as const;
+
+const SOCIAL_HOSTS = /tiktok|instagram|youtube|youtu\.be|facebook|pinterest/i;
+
+function pipelineFor(source: { kind?: string; url?: string }): readonly string[] {
+  if (source.kind === 'text') return PIPELINES.text;
+  return source.url && SOCIAL_HOSTS.test(source.url) ? PIPELINES.social : PIPELINES.web;
+}
 
 app.post('/import', (req, res) => {
   const source = req.body as { kind?: string; url?: string; text?: string };
   const id = newId();
 
-  importJobs.set(id, { status: 'pending', step: 0, label: PIPELINE[0], createdAt: Date.now() });
-  res.json({ taskId: id });
+  const pipeline = pipelineFor(source);
+  importJobs.set(id, { status: 'pending', step: 0, label: pipeline[0], labels: pipeline, createdAt: Date.now() });
+  // Send every stage name up front so the UI can render the checklist correctly
+  // without having to observe each transient step.
+  res.json({ taskId: id, labels: pipeline });
 
   void (async () => {
     const job = importJobs.get(id)!;
     const advance = (step: number) => {
       job.step = step;
-      job.label = PIPELINE[step];
+      job.label = pipeline[step];
     };
 
     try {
@@ -118,11 +137,14 @@ app.post('/import', (req, res) => {
         throw new ExtractionError('Send either a link or some recipe text');
       }
 
-      // The fetch is the slow part; the remaining steps are near-instant, but
-      // the app shows them, so surface them in order rather than jumping.
-      advance(2);
-      await new Promise((r) => setTimeout(r, 250));
-      advance(3);
+      // The fetch and extraction are the slow part; the rest is near-instant.
+      // Still walk every stage in order — the app renders one row per stage and
+      // labels a skipped stage with its default, which for a website import
+      // wrongly reads "Reading the video".
+      for (const step of [1, 2, 3]) {
+        advance(step);
+        await new Promise((r) => setTimeout(r, 200));
+      }
 
       // Re-host the source image. Social CDNs hand out *signed, expiring* URLs
       // — a TikTok thumbnail carries x-signature and x-expires roughly two days
@@ -153,6 +175,7 @@ app.get('/import/:id', (req, res) => {
     status: job.status,
     step: job.step,
     label: job.label,
+    labels: job.labels,
     ...(job.recipe ? { recipe: job.recipe } : {}),
     ...(job.error ? { error: job.error } : {}),
   });

@@ -23,6 +23,12 @@ export default function ImportReview() {
   const { pendingImport, addRecipe, setPendingImport } = useStore();
 
   const [title, setTitle] = useState(pendingImport?.title ?? '');
+  const [minutes, setMinutes] = useState(
+    pendingImport?.minutes !== undefined ? String(pendingImport.minutes) : ''
+  );
+  const [servings, setServings] = useState(
+    pendingImport?.servings !== undefined ? String(pendingImport.servings) : ''
+  );
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     () => pendingImport?.ingredients.map((r, i) => ({ ...r, key: i })) ?? []
   );
@@ -33,14 +39,33 @@ export default function ImportReview() {
   const updateIngredient = (key: number, patch: Partial<Ingredient>) =>
     setIngredients((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
+  /**
+   * The banner adapts to how the recipe was obtained. JSON-LD is published by
+   * the site itself, so nagging the user to check it is noise; a model reading
+   * a caption genuinely can misread quantities.
+   */
+  const confidence = pendingImport?.confidence ?? 0;
+  const accuracy =
+    confidence >= 1
+      ? null
+      : confidence >= 0.85
+        ? { tone: 'info' as const, message: 'Double-check the amounts — we extracted these automatically.' }
+        : {
+            tone: 'warn' as const,
+            message:
+              'We had to guess at some of this. Check the quantities and steps carefully before saving.',
+          };
+
   /** Commits the edited recipe to the library, then closes the import flow. */
   const save = () => {
     const recipe: Recipe = {
       id: `r-${Date.now().toString(36)}`,
       title: title.trim() || 'Untitled recipe',
-      minutes: pendingImport?.minutes ?? 30,
+      // Prefer what the user typed; fall back to the extraction, then to a
+      // neutral default rather than a made-up specific.
+      minutes: parseInt(minutes, 10) || pendingImport?.minutes || 30,
       calories: pendingImport?.calories ?? 0,
-      servings: pendingImport?.servings ?? 2,
+      servings: parseInt(servings, 10) || pendingImport?.servings || 2,
       favorite: false,
       // Defaults an importer can't reliably infer — the user can correct them
       // in the recipe editor.
@@ -97,33 +122,40 @@ export default function ImportReview() {
             style={{ fontSize: 24, fontWeight: '700', color: c.text, letterSpacing: -0.3 }}
           />
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-            {['⏱ Prep 15m', '🔥 Cook 25m', '🍽 Serves 4'].map((chip) => (
-              <View
-                key={chip}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 13,
-                  borderRadius: 14,
-                  backgroundColor: c.chipBg,
-                }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: c.text }}>{chip}</Text>
-              </View>
-            ))}
+          {/* Time and servings are frequently absent from a caption. Rather
+              than silently defaulting them, show them as editable and flag
+              when the importer couldn't find a value. */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+            <MetaField
+              label="Total minutes"
+              value={minutes}
+              onChangeText={setMinutes}
+              missing={pendingImport?.minutes === undefined}
+            />
+            <MetaField
+              label="Servings"
+              value={servings}
+              onChangeText={setServings}
+              missing={pendingImport?.servings === undefined}
+            />
           </View>
 
-          <View
-            style={{
-              marginTop: 16,
-              backgroundColor: c.accentTint,
-              borderRadius: 12,
-              paddingVertical: 10,
-              paddingHorizontal: 14,
-            }}>
-            <Text style={{ fontSize: 12.5, lineHeight: 18, fontWeight: '500', color: c.text }}>
-              Double-check the amounts — we extracted these automatically.
-            </Text>
-          </View>
+          {/* How loudly we tell the user to check depends on how the recipe was
+              extracted: site-authored JSON-LD is exact, a model is not. */}
+          {accuracy ? (
+            <View
+              style={{
+                marginTop: 16,
+                backgroundColor: accuracy.tone === 'warn' ? c.accentTint2 : c.accentTint,
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+              }}>
+              <Text style={{ fontSize: 12.5, lineHeight: 18, fontWeight: '500', color: c.text }}>
+                {accuracy.message}
+              </Text>
+            </View>
+          ) : null}
 
           {/* Ingredients */}
           <SectionTitle style={{ marginTop: 24 }}>Ingredients</SectionTitle>
@@ -266,9 +298,13 @@ export default function ImportReview() {
             }}>
             <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.surface }} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>@denise.cooks</Text>
+              <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>
+                {pendingImport?.source?.handle ?? 'Added by hand'}
+              </Text>
               <Text style={{ fontSize: 12, color: c.textSec }}>
-                Imported from TikTok · view original
+                {pendingImport?.source
+                  ? `Imported from ${pendingImport.source.platform} · view original`
+                  : 'Typed in manually'}
               </Text>
             </View>
           </View>
@@ -297,6 +333,50 @@ export default function ImportReview() {
         </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * An editable time/servings field. Marked when the importer found no value, so
+ * the user knows it's blank because the source didn't say — not because we lost it.
+ */
+function MetaField({
+  label,
+  value,
+  onChangeText,
+  missing,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  missing: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: c.textSec, marginBottom: 6 }}>
+        {label}
+        {missing ? <Text style={{ color: c.accent }}> · not stated</Text> : null}
+      </Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="number-pad"
+        placeholder="—"
+        placeholderTextColor={c.textSec}
+        accessibilityLabel={label}
+        style={{
+          height: 44,
+          borderRadius: 10,
+          backgroundColor: c.inputBg,
+          borderWidth: 1,
+          borderColor: missing ? c.accentTint2 : c.border,
+          paddingHorizontal: 12,
+          fontSize: 15,
+          color: c.text,
+        }}
+      />
+    </View>
   );
 }
 

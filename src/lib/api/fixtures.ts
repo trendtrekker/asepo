@@ -23,7 +23,7 @@ export const fixtureApi: RecipeApi = {
     // Walks the same pipeline the real backend reports, so the importing screen
     // behaves identically against either implementation.
     for (let step = 0; step < IMPORT_PIPELINE.length; step++) {
-      onProgress?.({ step, label: IMPORT_PIPELINE[step] });
+      onProgress?.({ step, label: IMPORT_PIPELINE[step], labels: [...IMPORT_PIPELINE] });
       await sleep(850);
     }
 
