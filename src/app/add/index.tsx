@@ -36,9 +36,14 @@ export default function AddRecipeSheet() {
   // whether or not there was actually a link on the clipboard.
   useEffect(() => {
     let cancelled = false;
-    Clipboard.getStringAsync().then((text) => {
-      if (!cancelled && looksLikeUrl(text)) setDetectedLink(text.trim());
-    });
+    // Some browsers (mobile Safari's in-app webview, http rather than https)
+    // don't expose the async Clipboard API at all and reject outright — that's
+    // a normal, silent case here, not a failure worth surfacing.
+    Clipboard.getStringAsync()
+      .then((text) => {
+        if (!cancelled && looksLikeUrl(text)) setDetectedLink(text.trim());
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -68,7 +73,7 @@ export default function AddRecipeSheet() {
       importUrl(url);
       return;
     }
-    const clip = await Clipboard.getStringAsync();
+    const clip = await Clipboard.getStringAsync().catch(() => '');
     if (!clip.trim()) {
       toast.show('Nothing to paste — copy a link first');
       return;

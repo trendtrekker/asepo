@@ -84,7 +84,7 @@ export default function Importing() {
 
   // Extraction failures get their own screen rather than a dead-end spinner.
   useEffect(() => {
-    if (error) router.replace('/add/failed');
+    if (error) router.replace({ pathname: '/add/failed', params: { message: error } });
   }, [error, router]);
 
   return (

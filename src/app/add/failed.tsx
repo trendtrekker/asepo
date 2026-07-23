@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ export default function ImportFailed() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { message } = useLocalSearchParams<{ message?: string }>();
 
   return (
     <Screen
@@ -44,7 +45,7 @@ export default function ImportFailed() {
           color: c.textSec,
           textAlign: 'center',
         }}>
-        The link might be private, deleted, or in a format we don't support yet
+        {message || "The link might be private, deleted, or in a format we don't support yet"}
       </Text>
 
       <View style={{ flex: 1 }} />
