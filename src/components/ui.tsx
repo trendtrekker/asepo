@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import {
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -316,5 +317,21 @@ export function Toggle({ value, onPress }: { value: boolean; onPress: () => void
         }}
       />
     </Pressable>
+  );
+}
+
+/**
+ * The brand illustration shown when a list is empty — grocery, search results,
+ * an unfiltered recipe library. One image reused across all three so the empty
+ * moments feel consistent rather than each inventing its own placeholder.
+ */
+export function EmptyIllustration({ size = 150 }: { size?: number }) {
+  return (
+    <Image
+      source={require('../../assets/images/empty-state.png')}
+      resizeMode="contain"
+      accessibilityLabel="Nothing here yet"
+      style={{ width: size, height: size }}
+    />
   );
 }

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Clock, Search as SearchIcon } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
-import { Button, Screen } from '@/components/ui';
+import { Button, EmptyIllustration, Screen } from '@/components/ui';
 import {
   ALL_INGREDIENTS,
   ALL_TAGS,
@@ -212,9 +212,7 @@ export default function Search() {
           </View>
         ) : (
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <View
-              style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: c.chipBg }}
-            />
+            <EmptyIllustration />
             <Text style={{ marginTop: 20, fontSize: 18, fontWeight: '700', color: c.text }}>
               Nothing found
             </Text>

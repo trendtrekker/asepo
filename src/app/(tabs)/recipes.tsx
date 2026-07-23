@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GridIcon, Search, Sliders } from '@/components/icons';
 import { RecipeGridCard, RecipeListRow } from '@/components/recipe-card';
-import { Screen } from '@/components/ui';
+import { EmptyIllustration, Screen } from '@/components/ui';
 import { SORT_OPTIONS } from '@/data/sample';
 import { applyChip, applyFilters, sortRecipes } from '@/lib/filter-recipes';
 import { useToast } from '@/components/toast';
@@ -216,7 +216,7 @@ export default function Recipes() {
         showsVerticalScrollIndicator={false}>
         {recipes.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 56, paddingHorizontal: 30 }}>
-            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: c.chipBg }} />
+            <EmptyIllustration />
             <Text style={{ marginTop: 18, fontSize: 17, fontWeight: '700', color: c.text }}>
               No recipes match
             </Text>

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
-import { Screen } from '@/components/ui';
+import { EmptyIllustration, Screen } from '@/components/ui';
 import { groupByAisle } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -63,7 +63,7 @@ export default function Grocery() {
         keyboardShouldPersistTaps="handled">
         {grocery.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 30, paddingHorizontal: 20 }}>
-            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: c.chipBg }} />
+            <EmptyIllustration />
             <Text style={{ marginTop: 20, fontSize: 18, fontWeight: '700', color: c.text }}>
               Nothing on the list
             </Text>
