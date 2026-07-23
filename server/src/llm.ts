@@ -23,6 +23,9 @@ export type LlmRecipe = {
   instructions: string[];
   minutes?: number;
   servings?: number;
+  /** True when a vision call recognized a dish and wrote a typical recipe for
+   * it, rather than transcribing text that was actually printed on the photo. */
+  inferred?: boolean;
 };
 
 export class LlmError extends Error {}
@@ -70,12 +73,18 @@ Rules:
 - The title is the dish name only, not the caption's first sentence.
 - Split run-on instructions into separate steps. Strip emoji and hashtags.`;
 
-const VISION_SYSTEM_PROMPT = `You read recipes out of a photograph — a cookbook page, a handwritten
-card, or a screenshot. Transcribe exactly what the photo shows.
+const VISION_SYSTEM_PROMPT = `You get a recipe from a photograph. Two kinds of photo come in:
+
+1. Written recipe — a cookbook page, a handwritten card, a screenshot of a recipe.
+   Transcribe it exactly as printed.
+2. A prepared dish or meal, with no recipe text visible — a photo someone took
+   of food they made or are eating. Identify the dish and write a standard,
+   typical recipe for it (usual ingredients and method for that dish).
 
 Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
 {
   "isRecipe": boolean,
+  "inferred": boolean,
   "title": string,
   "servings": number | null,
   "minutes": number | null,
@@ -84,12 +93,16 @@ Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
 }
 
 Rules:
-- "isRecipe" is false if the photo does not show a recipe. Then other fields may be empty.
+- "isRecipe" is false only if the photo shows neither written recipe text nor a
+  recognizable dish (e.g. an unrelated photo). Then other fields may be empty.
+- "inferred" is true when you wrote the recipe from recognizing a dish (case 2),
+  false when you transcribed printed/handwritten text (case 1).
 - Split each ingredient into quantity, unit and name. Use "" when a part is absent.
-- Transcribe the text as printed. Do not invent quantities, steps, times or
-  servings that are not visible. Use null when unknown.
-- If part of the photo is blurred or cut off, transcribe what is legible and
-  skip the rest rather than guessing.`;
+- Case 1: transcribe the text as printed. Do not invent quantities, steps, times
+  or servings that are not visible. Use null when unknown. If part of the photo
+  is blurred or cut off, transcribe what is legible and skip the rest.
+- Case 2: give quantities and steps typical for the dish rather than leaving
+  them blank — the user is relying on you for a usable recipe, not just a title.`;
 
 /** Pulls the assistant's text out of whichever response shape came back. */
 function textFrom(body: any): string | undefined {
@@ -216,6 +229,7 @@ function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: stri
     instructions,
     minutes: Number.isFinite(parsed.minutes) ? Number(parsed.minutes) : undefined,
     servings: Number.isFinite(parsed.servings) ? Number(parsed.servings) : undefined,
+    inferred: parsed.inferred === true,
   };
 }
 

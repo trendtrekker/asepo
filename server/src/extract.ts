@@ -26,7 +26,7 @@ export type ExtractedRecipe = {
   source?: { handle: string; platform: string };
   confidence?: number;
   /** Which strategy produced this, for debugging and telemetry. */
-  strategy?: 'json-ld' | 'llm' | 'heuristic' | 'vision';
+  strategy?: 'json-ld' | 'llm' | 'heuristic' | 'vision' | 'vision-inferred';
 };
 
 export class ExtractionError extends Error {}
@@ -237,10 +237,12 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
 }
 
 /**
- * Import from a photo — a cookbook page, a handwritten card, a screenshot.
- * There is no text to fall back to here, so unlike the URL/text paths this is
- * entirely dependent on a vision-capable model; there is no heuristic fallback
- * for reading pixels.
+ * Import from a photo — either a written recipe (cookbook page, handwritten
+ * card, screenshot) to transcribe, or a photo of a prepared meal with no
+ * recipe text, in which case the model identifies the dish and writes a
+ * typical recipe for it. There is no text to fall back to here, so unlike the
+ * URL/text paths this is entirely dependent on a vision-capable model — there
+ * is no heuristic fallback for reading pixels.
  */
 export async function extractFromImage(imageDataUrl: string): Promise<ExtractedRecipe> {
   if (!isVisionConfigured()) {
@@ -260,8 +262,10 @@ export async function extractFromImage(imageDataUrl: string): Promise<ExtractedR
     // The photo itself becomes the recipe's picture — it's a real photo of
     // the actual dish or page, better than any generated stand-in.
     imageUrl: imageDataUrl,
-    source: { handle: 'Scanned photo', platform: 'Photo' },
-    confidence: 0.85,
-    strategy: 'vision',
+    source: { handle: llm.inferred ? 'Recognized from photo' : 'Scanned photo', platform: 'Photo' },
+    // A recipe written from recognizing a dish is a best guess, not a read —
+    // meaningfully less trustworthy than transcribing text someone else wrote.
+    confidence: llm.inferred ? 0.55 : 0.85,
+    strategy: llm.inferred ? 'vision-inferred' : 'vision',
   };
 }
