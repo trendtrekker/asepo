@@ -3,9 +3,9 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
-import { extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
+import { extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
-import { storeImage, uploadDir } from './storage.js';
+import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
 
 /**
  * Asepo backend. Implements the contract the app expects in src/lib/api/http.ts:
@@ -21,7 +21,9 @@ const PUBLIC_URL = process.env.PUBLIC_URL?.trim() || `http://localhost:${PORT}`;
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+// Photo imports send a base64-encoded image in the JSON body, well past the
+// default 1mb limit — a phone photo easily runs 3-8mb once base64-inflated.
+app.use(express.json({ limit: '12mb' }));
 app.use('/uploads', express.static(uploadDir, { maxAge: '30d', immutable: true }));
 
 /* ------------------------------------------------------------------ *
@@ -99,17 +101,19 @@ const PIPELINES = {
   social: ['Fetching the post', 'Reading the caption', 'Finding ingredients', 'Structuring the recipe'],
   web: ['Fetching the page', 'Reading the recipe', 'Finding ingredients', 'Structuring the recipe'],
   text: ['Reading your text', 'Finding ingredients', 'Structuring the recipe', 'Checking the result'],
+  image: ['Uploading the photo', 'Reading the photo', 'Finding ingredients', 'Structuring the recipe'],
 } as const;
 
 const SOCIAL_HOSTS = /tiktok|instagram|youtube|youtu\.be|facebook|pinterest/i;
 
 function pipelineFor(source: { kind?: string; url?: string }): readonly string[] {
   if (source.kind === 'text') return PIPELINES.text;
+  if (source.kind === 'image') return PIPELINES.image;
   return source.url && SOCIAL_HOSTS.test(source.url) ? PIPELINES.social : PIPELINES.web;
 }
 
 app.post('/import', (req, res) => {
-  const source = req.body as { kind?: string; url?: string; text?: string };
+  const source = req.body as { kind?: string; url?: string; text?: string; uri?: string };
   const id = newId();
 
   const pipeline = pipelineFor(source);
@@ -133,8 +137,10 @@ app.post('/import', (req, res) => {
         recipe = await extractFromUrl(source.url);
       } else if (source.kind === 'text' && source.text) {
         recipe = await extractFromText(source.text);
+      } else if (source.kind === 'image' && source.uri) {
+        recipe = await extractFromImage(source.uri);
       } else {
-        throw new ExtractionError('Send either a link or some recipe text');
+        throw new ExtractionError('Send either a link, some recipe text, or a photo');
       }
 
       // The fetch and extraction are the slow part; the rest is near-instant.
@@ -152,7 +158,12 @@ app.post('/import', (req, res) => {
       // pictureless within days. Same reason we re-host kie.ai's output.
       if (recipe.imageUrl) {
         try {
-          recipe.imageUrl = await storeImage(recipe.imageUrl, PUBLIC_URL);
+          // A photo import's "imageUrl" is the base64 data: URL the phone sent
+          // us directly — nothing to fetch, just write the bytes we already have.
+          recipe.imageUrl =
+            source.kind === 'image'
+              ? await storeImageFromDataUrl(recipe.imageUrl, PUBLIC_URL)
+              : await storeImage(recipe.imageUrl, PUBLIC_URL);
         } catch {
           delete recipe.imageUrl;
         }

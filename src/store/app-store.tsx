@@ -15,7 +15,7 @@ import {
   type Recipe,
   type StoredCookbook,
 } from '@/data/sample';
-import { api, type ExtractedRecipe } from '@/lib/api';
+import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
 import { clearState, loadState, saveState } from '@/lib/storage';
 
@@ -104,6 +104,14 @@ type Store = {
   pendingImport: ExtractedRecipe | null;
   setPendingImport: (r: ExtractedRecipe | null) => void;
 
+  /**
+   * What to import — set by the add sheet (link / pasted text / photo) and
+   * read by the importing screen. A store field rather than a route param
+   * because a photo's base64 payload is too large to put in a URL.
+   */
+  pendingImportSource: ImportSource | null;
+  setPendingImportSource: (s: ImportSource | null) => void;
+
   /* favourites */
   isFavorite: (r: Recipe) => boolean;
   toggleFavorite: (id: string) => void;
@@ -155,6 +163,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [grocery, setGrocery] = useState<GroceryItem[]>([]);
   const [plan, setPlan] = useState<PlanEntry[]>([]);
   const [pendingImport, setPendingImport] = useState<ExtractedRecipe | null>(null);
+  const [pendingImportSource, setPendingImportSource] = useState<ImportSource | null>(null);
   const [importsUsed, setImportsUsed] = useState(0);
   const [isPro, setPro] = useState(false);
 
@@ -267,6 +276,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
       pendingImport,
       setPendingImport,
+      pendingImportSource,
+      setPendingImportSource,
 
       isFavorite: (r) => favorites[r.id] ?? r.favorite,
       toggleFavorite: (id) => setFavorites((f) => ({ ...f, [id]: !f[id] })),
@@ -322,6 +333,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       recipesLoading,
       recipesError,
       pendingImport,
+      pendingImportSource,
       favorites,
       filters,
       onboarding,

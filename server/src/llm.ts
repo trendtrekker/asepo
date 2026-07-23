@@ -3,11 +3,12 @@ import type { Ingredient } from './ingredients.js';
 /**
  * LLM-backed recipe extraction.
  *
- * kie.ai exposes chat models through two different protocols, both verified
+ * kie.ai exposes chat models through three different protocols, all verified
  * against a live key:
  *
  *   responses  POST /codex/v1/responses    { model, input: [{role, content:[{type:'input_text',text}]}] }
- *              works for gpt-5-5, gpt-5-4, grok-4-5
+ *              works for gpt-5-5, gpt-5-4, grok-4-5. Also the only protocol
+ *              verified to accept image input (input_image with a data: URL).
  *   messages   POST /claude/v1/messages    { model, messages: [...] }   (Anthropic shape)
  *              works for claude-fable-5
  *   chat       POST /v1/chat/completions   { model, messages: [...] }   (OpenAI shape)
@@ -39,6 +40,12 @@ export function isLlmConfigured(): boolean {
   return Boolean(config().apiKey);
 }
 
+/** Photo import only works through the verified `responses` + input_image path. */
+export function isVisionConfigured(): boolean {
+  const c = config();
+  return Boolean(c.apiKey) && c.protocol === 'responses';
+}
+
 const SYSTEM_PROMPT = `You extract recipes from social media captions and web pages.
 
 Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
@@ -62,6 +69,27 @@ Rules:
   quantities, steps, times or servings that are not stated. Use null when unknown.
 - The title is the dish name only, not the caption's first sentence.
 - Split run-on instructions into separate steps. Strip emoji and hashtags.`;
+
+const VISION_SYSTEM_PROMPT = `You read recipes out of a photograph — a cookbook page, a handwritten
+card, or a screenshot. Transcribe exactly what the photo shows.
+
+Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
+{
+  "isRecipe": boolean,
+  "title": string,
+  "servings": number | null,
+  "minutes": number | null,
+  "ingredients": [{"qty": string, "unit": string, "name": string}],
+  "instructions": [string]
+}
+
+Rules:
+- "isRecipe" is false if the photo does not show a recipe. Then other fields may be empty.
+- Split each ingredient into quantity, unit and name. Use "" when a part is absent.
+- Transcribe the text as printed. Do not invent quantities, steps, times or
+  servings that are not visible. Use null when unknown.
+- If part of the photo is blurred or cut off, transcribe what is legible and
+  skip the rest rather than guessing.`;
 
 /** Pulls the assistant's text out of whichever response shape came back. */
 function textFrom(body: any): string | undefined {
@@ -135,20 +163,10 @@ function parseJsonReply(raw: string): any {
   }
 }
 
-export async function extractWithLlm(sourceText: string, hintTitle?: string): Promise<LlmRecipe> {
-  const { baseUrl, model, protocol, apiKey } = config();
-  if (!apiKey) throw new LlmError('No LLM API key configured');
-
-  const user = [hintTitle ? `Title hint: ${hintTitle}` : null, 'Text:', sourceText.slice(0, 12_000)]
-    .filter(Boolean)
-    .join('\n');
-
-  const { path, body } = buildRequest(protocol, model, SYSTEM_PROMPT, user);
-
+async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
 
-  let payload: any;
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
@@ -156,21 +174,23 @@ export async function extractWithLlm(sourceText: string, hintTitle?: string): Pr
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    payload = await response.json().catch(() => null);
+    return await response.json().catch(() => null);
   } catch {
     throw new LlmError('Could not reach the language model');
   } finally {
     clearTimeout(timer);
   }
+}
 
-  const content = textFrom(payload);
+/** Turns the model's parsed JSON into our shape, or throws with a reason. */
+function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: string): LlmRecipe {
   if (!content) {
     // kie.ai returns HTTP 200 with the error in the body.
     throw new LlmError(payload?.error?.message ?? payload?.msg ?? 'The language model returned nothing');
   }
 
   const parsed = parseJsonReply(content);
-  if (parsed?.isRecipe === false) throw new LlmError('That page does not look like a recipe');
+  if (parsed?.isRecipe === false) throw new LlmError('That does not look like a recipe');
 
   const ingredients: Ingredient[] = Array.isArray(parsed.ingredients)
     ? parsed.ingredients
@@ -187,7 +207,7 @@ export async function extractWithLlm(sourceText: string, hintTitle?: string): Pr
     : [];
 
   if (!ingredients.length && !instructions.length) {
-    throw new LlmError('The model found no recipe in that text');
+    throw new LlmError('The model found no recipe there');
   }
 
   return {
@@ -197,4 +217,47 @@ export async function extractWithLlm(sourceText: string, hintTitle?: string): Pr
     minutes: Number.isFinite(parsed.minutes) ? Number(parsed.minutes) : undefined,
     servings: Number.isFinite(parsed.servings) ? Number(parsed.servings) : undefined,
   };
+}
+
+export async function extractWithLlm(sourceText: string, hintTitle?: string): Promise<LlmRecipe> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+
+  const user = [hintTitle ? `Title hint: ${hintTitle}` : null, 'Text:', sourceText.slice(0, 12_000)]
+    .filter(Boolean)
+    .join('\n');
+
+  const { path, body } = buildRequest(protocol, model, SYSTEM_PROMPT, user);
+  const payload = await callModel(baseUrl, apiKey, path, body);
+  return toLlmRecipe(textFrom(payload), payload, hintTitle);
+}
+
+/**
+ * Reads a recipe out of a photo. `imageDataUrl` is a full data: URL
+ * (data:image/jpeg;base64,...) — verified working against gpt-5-5 via the
+ * responses protocol; other protocols aren't wired for image input.
+ */
+export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+  if (protocol !== 'responses') {
+    throw new LlmError('Photo import needs LLM_PROTOCOL=responses — check server/.env');
+  }
+
+  const payload = await callModel(baseUrl, apiKey, '/responses', {
+    model,
+    stream: false,
+    input: [
+      { role: 'system', content: [{ type: 'input_text', text: VISION_SYSTEM_PROMPT }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Read the recipe in this photo.' },
+          { type: 'input_image', image_url: imageDataUrl },
+        ],
+      },
+    ],
+  });
+
+  return toLlmRecipe(textFrom(payload), payload);
 }

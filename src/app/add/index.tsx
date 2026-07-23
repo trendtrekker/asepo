@@ -1,8 +1,11 @@
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useToast } from '@/components/toast';
 import { SheetHandle } from '@/components/ui';
 import { ADD_TILES } from '@/data/sample';
 import { useStore } from '@/store/app-store';
@@ -16,24 +19,111 @@ const TILE_ICONS: Record<string, string> = {
   app: '⬇',
 };
 
+/** A loose check — good enough to decide whether to offer the clipboard banner. */
+const looksLikeUrl = (s: string) => /^https?:\/\/\S+\.\S+/i.test(s.trim());
+
 /** Screen 7 — "Add a recipe" bottom sheet. */
 export default function AddRecipeSheet() {
   const c = useColors();
+  const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro } = useStore();
+  const { importsUsed, importLimit, isPro, setPendingImportSource } = useStore();
   const [url, setUrl] = useState('');
+  const [detectedLink, setDetectedLink] = useState<string | null>(null);
 
-  // Stand-in for expo-clipboard detection.
-  const clipboardDetected = true;
+  // Real clipboard check on open — the old version always showed the banner,
+  // whether or not there was actually a link on the clipboard.
+  useEffect(() => {
+    let cancelled = false;
+    Clipboard.getStringAsync().then((text) => {
+      if (!cancelled && looksLikeUrl(text)) setDetectedLink(text.trim());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const startImport = () => {
-    if (!isPro && importsUsed >= importLimit) router.replace('/add/limit');
-    else router.replace({ pathname: '/add/importing', params: url.trim() ? { url: url.trim() } : {} });
+  const beginImport = (source: Parameters<typeof setPendingImportSource>[0]) => {
+    if (!isPro && importsUsed >= importLimit) {
+      router.replace('/add/limit');
+      return;
+    }
+    setPendingImportSource(source);
+    router.replace('/add/importing');
   };
 
-  const openTile = (id: string) =>
-    id === 'write' ? router.replace('/add/manual') : startImport();
+  const importUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast.show('Paste a link first');
+      return;
+    }
+    beginImport({ kind: 'url', url: trimmed });
+  };
+
+  /** The single field does double duty: paste when empty, submit when full. */
+  const onFieldAction = async () => {
+    if (url.trim()) {
+      importUrl(url);
+      return;
+    }
+    const clip = await Clipboard.getStringAsync();
+    if (!clip.trim()) {
+      toast.show('Nothing to paste — copy a link first');
+      return;
+    }
+    setUrl(clip.trim());
+  };
+
+  const pickImage = async (from: 'camera' | 'library') => {
+    const permission =
+      from === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      toast.show(
+        from === 'camera'
+          ? 'Camera access is off — enable it in Settings to scan a recipe'
+          : 'Photo access is off — enable it in Settings to import a screenshot'
+      );
+      return;
+    }
+
+    const result =
+      from === 'camera'
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6 });
+
+    if (result.canceled || !result.assets[0]?.base64) return;
+
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? 'image/jpeg';
+    beginImport({ kind: 'image', uri: `data:${mime};base64,${asset.base64}` });
+  };
+
+  const openTile = (id: string) => {
+    switch (id) {
+      case 'write':
+        router.replace('/add/manual');
+        return;
+      case 'paste':
+        router.push('/add/paste-text');
+        return;
+      case 'scan':
+        pickImage('camera');
+        return;
+      case 'library':
+        pickImage('library');
+        return;
+      case 'app':
+        // The share-sheet extension is a separate native target — it only
+        // exists in a real build, never inside Expo Go.
+        toast.show('Importing from other apps needs a native build, not available in Expo Go');
+        return;
+    }
+  };
 
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -63,7 +153,7 @@ export default function AddRecipeSheet() {
         </Text>
 
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          {clipboardDetected ? (
+          {detectedLink ? (
             <View
               style={{
                 flexDirection: 'row',
@@ -78,11 +168,11 @@ export default function AddRecipeSheet() {
                 marginBottom: 14,
               }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />
-              <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: c.text }}>
+              <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: c.text }} numberOfLines={1}>
                 Recipe link detected — import?
               </Text>
               <Pressable
-                onPress={startImport}
+                onPress={() => importUrl(detectedLink)}
                 accessibilityRole="button"
                 style={{
                   backgroundColor: c.accent,
@@ -114,11 +204,11 @@ export default function AddRecipeSheet() {
               placeholderTextColor={c.textSec}
               autoCapitalize="none"
               keyboardType="url"
-              onSubmitEditing={startImport}
+              onSubmitEditing={() => importUrl(url)}
               style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 12 }}
             />
             <Pressable
-              onPress={startImport}
+              onPress={onFieldAction}
               accessibilityRole="button"
               style={{
                 backgroundColor: c.accent,
@@ -126,7 +216,9 @@ export default function AddRecipeSheet() {
                 paddingVertical: 9,
                 paddingHorizontal: 16,
               }}>
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Paste</Text>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                {url.trim() ? 'Import' : 'Paste'}
+              </Text>
             </Pressable>
           </View>
 

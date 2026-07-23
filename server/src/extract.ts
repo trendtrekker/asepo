@@ -1,7 +1,7 @@
 import { assertPublicUrl, fetchHtml, FetchError } from './fetch-page.js';
 import { parseCaption } from './heuristic.js';
 import { parseIngredient, parseIsoDuration, parseYield, type Ingredient } from './ingredients.js';
-import { extractWithLlm, isLlmConfigured, LlmError } from './llm.js';
+import { extractWithImage, extractWithLlm, isLlmConfigured, isVisionConfigured, LlmError } from './llm.js';
 import { gatherSourceText, platformOf } from './source-text.js';
 
 /**
@@ -26,7 +26,7 @@ export type ExtractedRecipe = {
   source?: { handle: string; platform: string };
   confidence?: number;
   /** Which strategy produced this, for debugging and telemetry. */
-  strategy?: 'json-ld' | 'llm' | 'heuristic';
+  strategy?: 'json-ld' | 'llm' | 'heuristic' | 'vision';
 };
 
 export class ExtractionError extends Error {}
@@ -234,4 +234,34 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
   }
 
   throw new ExtractionError('Could not find a recipe in that text');
+}
+
+/**
+ * Import from a photo — a cookbook page, a handwritten card, a screenshot.
+ * There is no text to fall back to here, so unlike the URL/text paths this is
+ * entirely dependent on a vision-capable model; there is no heuristic fallback
+ * for reading pixels.
+ */
+export async function extractFromImage(imageDataUrl: string): Promise<ExtractedRecipe> {
+  if (!isVisionConfigured()) {
+    throw new ExtractionError(
+      isLlmConfigured()
+        ? 'Photo import needs the LLM in "responses" mode — see server/.env'
+        : 'Photo import needs a language model, which is not configured'
+    );
+  }
+
+  const llm = await extractWithImage(imageDataUrl).catch((e) => {
+    throw new ExtractionError(e instanceof LlmError ? e.message : 'Could not read that photo');
+  });
+
+  return {
+    ...llm,
+    // The photo itself becomes the recipe's picture — it's a real photo of
+    // the actual dish or page, better than any generated stand-in.
+    imageUrl: imageDataUrl,
+    source: { handle: 'Scanned photo', platform: 'Photo' },
+    confidence: 0.85,
+    strategy: 'vision',
+  };
 }

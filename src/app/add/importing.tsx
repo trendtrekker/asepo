@@ -1,11 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
 import { Button, PhotoPlaceholder, Screen } from '@/components/ui';
-import { api, IMPORT_PIPELINE, type ImportSource } from '@/lib/api';
+import { api, IMPORT_PIPELINE } from '@/lib/api';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -14,8 +14,7 @@ export default function Importing() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { recordImport, setPendingImport } = useStore();
-  const { url } = useLocalSearchParams<{ url?: string }>();
+  const { recordImport, setPendingImport, pendingImportSource } = useStore();
 
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
@@ -40,13 +39,18 @@ export default function Importing() {
   }, [pulse]);
 
   useEffect(() => {
+    // Reached directly (deep link, stale reload) with nothing queued up —
+    // there's nothing to extract, so send the user back rather than fail
+    // against an empty source.
+    if (!pendingImportSource) {
+      router.replace('/add');
+      return;
+    }
+
     let cancelled = false;
-    const source: ImportSource = url?.trim()
-      ? { kind: 'url', url: url.trim() }
-      : { kind: 'text', text: '' };
 
     api
-      .extractRecipe(source, (p) => {
+      .extractRecipe(pendingImportSource, (p) => {
         if (cancelled) return;
         setStep(p.step);
         // The backend sends its full stage list on the first tick; fall back to
@@ -72,7 +76,11 @@ export default function Importing() {
     return () => {
       cancelled = true;
     };
-  }, [url, recordImport, setPendingImport]);
+    // Deliberately excludes pendingImportSource beyond its initial value:
+    // this effect should run once per visit to the screen, not re-fire if the
+    // store object identity happens to change while we're mid-request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordImport, setPendingImport, router]);
 
   // Extraction failures get their own screen rather than a dead-end spinner.
   useEffect(() => {

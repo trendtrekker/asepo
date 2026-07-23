@@ -9,7 +9,11 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.asepo.app"
+      "bundleIdentifier": "com.asepo.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Asepo uses your camera to scan recipe cards and cookbook pages.",
+        "NSPhotoLibraryUsageDescription": "Asepo needs access to your photos to import a recipe from a screenshot."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +36,13 @@
           "backgroundColor": "#1B2C43",
           "image": "./assets/images/brand-icon.png",
           "imageWidth": 160
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Asepo needs access to your photos to import a recipe from a screenshot.",
+          "cameraPermission": "Asepo uses your camera to scan recipe cards and cookbook pages."
         }
       ]
     ],
