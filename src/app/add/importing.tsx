@@ -4,7 +4,7 @@ import { Animated, Easing, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
-import { Button, PhotoPlaceholder, Screen } from '@/components/ui';
+import { Button, Screen } from '@/components/ui';
 import { api, IMPORT_PIPELINE } from '@/lib/api';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -27,6 +27,7 @@ export default function Importing() {
    */
   const [labels, setLabels] = useState<string[]>([...IMPORT_PIPELINE]);
   const pulse = useRef(new Animated.Value(0.4)).current;
+  const readyPop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -66,6 +67,7 @@ export default function Importing() {
         setStep(IMPORT_PIPELINE.length - 1);
         setDone(true);
         setPreviewImageUrl(extracted.imageUrl);
+        Animated.spring(readyPop, { toValue: 1, friction: 5, tension: 60, useNativeDriver: true }).start();
         // Hand the result to the review screen, which owns saving it.
         setPendingImport(extracted);
         recordImport();
@@ -166,14 +168,22 @@ export default function Importing() {
               style={{ width: 44, height: 44, borderRadius: 10 }}
             />
           ) : (
-            <PhotoPlaceholder
-              stripe={12}
-              colors={[c.accentTint2, c.accentTint]}
-              style={{ width: 44, height: 44, borderRadius: 10 }}
-            />
+            <Animated.View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: c.success,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: readyPop,
+                transform: [{ scale: readyPop }],
+              }}>
+              <Check color="#fff" />
+            </Animated.View>
           )}
           <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
-            {previewImageUrl ? 'Source preview ready' : 'Recipe ready — generating a photo next'}
+            {previewImageUrl ? 'Source preview ready' : 'Recipe ready — adding a photo next'}
           </Text>
         </View>
       ) : null}
