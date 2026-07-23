@@ -19,6 +19,7 @@ export default function Importing() {
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | undefined>(undefined);
   /**
    * The backend names each stage as it reaches it — "Reading the caption" for a
    * TikTok, "Reading the page" for a website. Start from the generic list and
@@ -64,6 +65,7 @@ export default function Importing() {
         if (cancelled) return;
         setStep(IMPORT_PIPELINE.length - 1);
         setDone(true);
+        setPreviewImageUrl(extracted.imageUrl);
         // Hand the result to the review screen, which owns saving it.
         setPendingImport(extracted);
         recordImport();
@@ -157,13 +159,21 @@ export default function Importing() {
             paddingHorizontal: 14,
             width: '100%',
           }}>
-          <PhotoPlaceholder
-            stripe={12}
-            colors={[c.accentTint2, c.accentTint]}
-            style={{ width: 44, height: 44, borderRadius: 10 }}
-          />
+          {previewImageUrl ? (
+            <Image
+              source={{ uri: previewImageUrl }}
+              accessibilityLabel="Recipe preview"
+              style={{ width: 44, height: 44, borderRadius: 10 }}
+            />
+          ) : (
+            <PhotoPlaceholder
+              stripe={12}
+              colors={[c.accentTint2, c.accentTint]}
+              style={{ width: 44, height: 44, borderRadius: 10 }}
+            />
+          )}
           <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
-            Source preview ready
+            {previewImageUrl ? 'Source preview ready' : 'Recipe ready — generating a photo next'}
           </Text>
         </View>
       ) : null}
