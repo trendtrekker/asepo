@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, Easing, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, PhotoPlaceholder, Screen } from '@/components/ui';
+import { Button, Screen } from '@/components/ui';
 import { useColors } from '@/theme/theme-context';
 
 /** Screen 6 — Notification permission primer. */
@@ -45,31 +45,18 @@ export default function NotificationPrimer() {
         paddingTop: insets.top + 56,
         paddingBottom: insets.bottom + 20,
       }}>
-      <PhotoPlaceholder
+      <Animated.Image
+        source={require('../../assets/images/primer-notifications.png')}
+        resizeMode="contain"
+        accessibilityLabel="Meal-prep reminders"
         style={{
-          width: 180,
-          height: 180,
-          borderRadius: 40,
-          borderWidth: 1,
-          borderColor: c.border,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Animated.View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 20,
-            backgroundColor: c.accent,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: pulse,
-          }}>
-          <View
-            style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2.5, borderColor: '#fff' }}
-          />
-        </Animated.View>
-      </PhotoPlaceholder>
+          width: 200,
+          height: 200,
+          // A gentle breathing scale rather than the old opacity pulse — the
+          // illustration is already complete, so it just needs to feel alive.
+          transform: [{ scale: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.97, 1.02] }) }],
+        }}
+      />
 
       <Text
         style={{
