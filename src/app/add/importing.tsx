@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, Easing, Image, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
@@ -87,26 +87,19 @@ export default function Importing() {
         paddingTop: insets.top + 42,
         paddingBottom: insets.bottom + 20,
       }}>
-      <PhotoPlaceholder
+      <Animated.Image
+        source={require('../../../assets/images/importing.png')}
+        resizeMode="contain"
+        accessibilityLabel="Reading the recipe"
         style={{
-          width: 150,
-          height: 150,
-          borderRadius: 36,
-          borderWidth: 1,
-          borderColor: c.border,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Animated.View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            backgroundColor: c.accent,
-            opacity: pulse,
-          }}
-        />
-      </PhotoPlaceholder>
+          width: 168,
+          height: 168,
+          // Keep the pulse so it still reads as "working", but on the whole
+          // illustration rather than a bare square inside a frame.
+          opacity: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.7, 1] }),
+          transform: [{ scale: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.97, 1.02] }) }],
+        }}
+      />
 
       <Text
         style={{ marginTop: 26, fontSize: 21, fontWeight: '700', color: c.text, textAlign: 'center' }}>
