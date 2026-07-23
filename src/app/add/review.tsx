@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DragHandle } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen, SectionTitle } from '@/components/ui';
-import { RECIPE_SAMPLES, type Recipe } from '@/data/sample';
+import { type Recipe } from '@/data/sample';
+import { api } from '@/lib/api';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -35,6 +36,45 @@ export default function ImportReview() {
   const [instructions, setInstructions] = useState<Instruction[]>(
     () => pendingImport?.instructions.map((text, i) => ({ text, key: i })) ?? []
   );
+
+  // Photo/text imports don't come with a picture — generate one so the recipe
+  // isn't left with a blank gradient forever. A source image (URL/scan) always
+  // wins; this only fires when there's genuinely nothing to show.
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (pendingImport?.imageUrl || !pendingImport) return;
+    let cancelled = false;
+
+    const run = async () => {
+      const task = await api
+        .generateRecipeImage({
+          id: 'preview',
+          title: title || pendingImport.title,
+          cuisine: 'American',
+          ingredients: pendingImport.ingredients,
+        } as Recipe)
+        .catch(() => null);
+      if (!task || task.status === 'failed' || cancelled) return;
+
+      let current = task;
+      while (!cancelled && current.status === 'pending') {
+        await new Promise((r) => setTimeout(r, 2000));
+        current = await api.getImageTask(current.taskId).catch(() => current);
+        if (current.status === 'ready' && current.url && !cancelled) {
+          setGeneratedImageUrl(current.url);
+        }
+        if (current.status === 'failed') break;
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // Runs once against the source recipe as extracted — not on every
+    // keystroke as the user edits the title/ingredients below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingImport]);
 
   const updateIngredient = (key: number, patch: Partial<Ingredient>) =>
     setIngredients((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -83,7 +123,7 @@ export default function ImportReview() {
         .filter((i) => i.name.trim())
         .map(({ qty, unit, name }) => ({ qty: qty.trim(), unit: unit.trim(), name: name.trim() })),
       instructions: instructions.map((s) => s.text.trim()).filter(Boolean),
-      photoUrl: pendingImport?.imageUrl,
+      photoUrl: pendingImport?.imageUrl ?? generatedImageUrl,
     };
 
     addRecipe(recipe);
@@ -98,7 +138,14 @@ export default function ImportReview() {
     <Screen>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 12 }}>
         <RecipeImage
-          recipe={RECIPE_SAMPLES[0]}
+          recipe={
+            {
+              id: 'preview',
+              cuisine: 'American',
+              title: title || 'Untitled recipe',
+              photoUrl: pendingImport?.imageUrl ?? generatedImageUrl,
+            } as Recipe
+          }
           glyph={84}
           style={{ height: 230, justifyContent: 'flex-end', alignItems: 'flex-end' }}>
           <Pressable
