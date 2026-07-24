@@ -222,6 +222,12 @@ function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: stri
   if (!ingredients.length && !instructions.length) {
     throw new LlmError('The model found no recipe there');
   }
+  // A recipe without steps isn't usable — treat it as a failed extraction so
+  // callers with a fallback (the heuristic parser) get a chance to do better,
+  // rather than silently handing back ingredients with nothing to do with them.
+  if (!instructions.length) {
+    throw new LlmError('Found ingredients but no steps to follow');
+  }
 
   return {
     title: String(parsed.title ?? hintTitle ?? 'Imported recipe').trim(),
