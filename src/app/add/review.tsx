@@ -1,13 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DragHandle } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen, SectionTitle } from '@/components/ui';
 import { type Recipe } from '@/data/sample';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -39,11 +39,15 @@ export default function ImportReview() {
 
   // Photo/text imports don't come with a picture — generate one so the recipe
   // isn't left with a blank gradient forever. A source image (URL/scan) always
-  // wins; this only fires when there's genuinely nothing to show.
+  // wins; this only fires when there's genuinely nothing to show. kie.ai
+  // routinely takes 30-50s, so this needs its own loading state — otherwise
+  // the gradient placeholder looks identical whether one is on the way or not.
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | undefined>(undefined);
+  const [generatingImage, setGeneratingImage] = useState(false);
   useEffect(() => {
     if (pendingImport?.imageUrl || !pendingImport) return;
     let cancelled = false;
+    setGeneratingImage(true);
 
     const run = async () => {
       const task = await api
@@ -54,17 +58,29 @@ export default function ImportReview() {
           ingredients: pendingImport.ingredients,
         } as Recipe)
         .catch(() => null);
-      if (!task || task.status === 'failed' || cancelled) return;
+      if (!task || task.status === 'failed' || cancelled) {
+        if (!cancelled) setGeneratingImage(false);
+        return;
+      }
 
+      const deadline = Date.now() + 120_000;
       let current = task;
-      while (!cancelled && current.status === 'pending') {
+      while (!cancelled && current.status === 'pending' && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2000));
-        current = await api.getImageTask(current.taskId).catch(() => current);
+        try {
+          current = await api.getImageTask(current.taskId);
+        } catch (e) {
+          // A 404 means the job is gone for good (server restart, eviction) —
+          // retrying just burns the full timeout on a task that'll never
+          // resolve. Anything else (a dropped request) is worth retrying.
+          if (e instanceof ApiError && e.status === 404) break;
+        }
         if (current.status === 'ready' && current.url && !cancelled) {
           setGeneratedImageUrl(current.url);
         }
         if (current.status === 'failed') break;
       }
+      if (!cancelled) setGeneratingImage(false);
     };
 
     void run();
@@ -148,6 +164,24 @@ export default function ImportReview() {
           }
           glyph={84}
           style={{ height: 230, justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+          {generatingImage && !pendingImport?.imageUrl && !generatedImageUrl ? (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}>
+              <ActivityIndicator color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                Generating a photo…
+              </Text>
+            </View>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             onPress={() => toast.show('Photo picker comes with the backend')}
