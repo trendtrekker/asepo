@@ -26,7 +26,7 @@ export type ExtractedRecipe = {
   source?: { handle: string; platform: string };
   confidence?: number;
   /** Which strategy produced this, for debugging and telemetry. */
-  strategy?: 'json-ld' | 'llm' | 'heuristic' | 'vision' | 'vision-inferred';
+  strategy?: 'json-ld' | 'llm' | 'llm-inferred' | 'heuristic' | 'vision' | 'vision-inferred';
 };
 
 export class ExtractionError extends Error {}
@@ -215,7 +215,15 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
   if (isLlmConfigured()) {
     try {
       const llm = await extractWithLlm(text);
-      return { ...llm, confidence: 0.9, strategy: 'llm', source: { handle: 'Pasted text', platform: 'Manual' } };
+      return {
+        ...llm,
+        // Inferred steps are a guess at a typical method, not something the
+        // user actually wrote — flag it the same way a recognized meal photo
+        // is flagged, so the "double-check this" banner is honest about it.
+        source: { handle: llm.inferred ? 'Guessed from ingredients' : 'Pasted text', platform: 'Manual' },
+        confidence: llm.inferred ? 0.55 : 0.9,
+        strategy: llm.inferred ? 'llm-inferred' : 'llm',
+      };
     } catch (e) {
       if (!(e instanceof LlmError)) throw e;
     }

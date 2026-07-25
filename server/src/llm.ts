@@ -54,6 +54,7 @@ const SYSTEM_PROMPT = `You extract recipes from social media captions and web pa
 Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
 {
   "isRecipe": boolean,
+  "inferred": boolean,
   "title": string,
   "servings": number | null,
   "minutes": number | null,
@@ -69,9 +70,13 @@ Rules:
 - Every distinct ingredient gets its own entry. Never merge two ingredients into
   one line, even when the caption runs them together without punctuation.
 - Keep the author's wording for ingredient names and steps. Do not invent
-  quantities, steps, times or servings that are not stated. Use null when unknown.
+  quantities or times that are not stated. Use null when unknown.
 - The title is the dish name only, not the caption's first sentence.
-- Split run-on instructions into separate steps. Strip emoji and hashtags.`;
+- Split run-on instructions into separate steps. Strip emoji and hashtags.
+- If the text names a dish and lists ingredients but has no method at all, write
+  a typical, standard method for that dish rather than leaving "instructions"
+  empty — the user needs actual steps to cook from, not just a shopping list.
+  Set "inferred" to true in that case. Otherwise set it to false.`;
 
 const VISION_SYSTEM_PROMPT = `You get a recipe from a photograph. Two kinds of photo come in:
 

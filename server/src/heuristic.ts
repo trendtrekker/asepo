@@ -173,6 +173,10 @@ export function parseCaption(caption: string, fallbackTitle?: string): Heuristic
 
   // Too little structure to be trustworthy — let the LLM try instead.
   if (ingredients.length < 2) return null;
+  // Unlike the LLM, this parser can't invent a method for a dish it
+  // recognizes — it can only find text that's actually there. No step
+  // lines means nothing usable came out of this pass.
+  if (instructions.length === 0) return null;
 
   const title = shortTitle(
     fallbackTitle ||
