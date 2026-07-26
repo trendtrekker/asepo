@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Eye } from '@/components/icons';
 import { Button, Field, Screen } from '@/components/ui';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/store/auth-store';
 import { useColors } from '@/theme/theme-context';
 import { radius } from '@/theme/tokens';
 import { useToast } from '@/components/toast';
@@ -15,13 +17,41 @@ export default function EmailAuth() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signUpWithEmail, signInWithEmail } = useAuth();
 
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const isSignIn = mode === 'signin';
+
+  const submit = async () => {
+    if (!email.trim() || !password) {
+      toast.show('Enter an email and password');
+      return;
+    }
+    if (password.length < 6) {
+      toast.show('Password needs to be at least 6 characters');
+      return;
+    }
+    if (submitting) return;
+    setSubmitting(true);
+    const { error } = isSignIn
+      ? await signInWithEmail(email, password)
+      : await signUpWithEmail(email, password);
+    setSubmitting(false);
+
+    if (error) {
+      toast.show(error);
+      return;
+    }
+    if (!isSignIn) {
+      toast.show('Check your email to confirm your account');
+    }
+    router.push('/paywall');
+  };
 
   return (
     <Screen>
@@ -94,7 +124,14 @@ export default function EmailAuth() {
           {isSignIn ? (
             <Pressable
               accessibilityRole="button"
-              onPress={() => toast.show('Password reset needs the backend')}
+              onPress={async () => {
+                if (!email.trim()) {
+                  toast.show('Enter your email first');
+                  return;
+                }
+                const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+                toast.show(error ? error.message : 'Check your email for a reset link');
+              }}
               style={{ alignSelf: 'flex-end' }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: c.accent }}>
                 Forgot password?
@@ -105,7 +142,11 @@ export default function EmailAuth() {
 
         <View style={{ flex: 1 }} />
 
-        <Button title="Continue" onPress={() => router.push('/paywall')} />
+        <Button
+          title={submitting ? 'Continue…' : 'Continue'}
+          onPress={submit}
+          style={submitting ? { opacity: 0.7 } : undefined}
+        />
 
         <View
           style={{

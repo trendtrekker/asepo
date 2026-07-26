@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/toast';
 import { AppStoreProvider } from '@/store/app-store';
+import { AuthProvider } from '@/store/auth-store';
 import { AsepoThemeProvider, useTheme } from '@/theme/theme-context';
 
 function RootNavigator() {
@@ -60,11 +61,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AsepoThemeProvider>
-          <AppStoreProvider>
-            <ToastProvider>
-              <RootNavigator />
-            </ToastProvider>
-          </AppStoreProvider>
+          <AuthProvider>
+            <AppStoreProvider>
+              <ToastProvider>
+                <RootNavigator />
+              </ToastProvider>
+            </AppStoreProvider>
+          </AuthProvider>
         </AsepoThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
