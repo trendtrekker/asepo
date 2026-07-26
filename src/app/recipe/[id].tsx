@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check, ChevronLeft, Heart, MoreHorizontal } from '@/components/icons';
@@ -16,6 +16,7 @@ import { convertMeasure } from '@/lib/quantity';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
+import { BRAND_NAVY } from '@/theme/tokens';
 
 type Tab = 'Ingredients' | 'Steps' | 'Nutrition';
 
@@ -29,8 +30,7 @@ export default function RecipeDetail() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isFavorite, toggleFavorite, getRecipe, updateRecipe, deleteRecipe, addRecipeToGrocery, isPro } =
-    useStore();
+  const { isFavorite, toggleFavorite, getRecipe, deleteRecipe, addRecipeToGrocery, isPro } = useStore();
 
   const recipe = getRecipe(id);
   const [tab, setTab] = useState<Tab>('Ingredients');
@@ -40,8 +40,8 @@ export default function RecipeDetail() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [healthifying, setHealthifying] = useState(false);
-  const [healthifyError, setHealthifyError] = useState<string | null>(null);
-  const [healthierResult, setHealthierResult] = useState<HealthierRecipe | null>(null);
+  const [healthier, setHealthier] = useState<HealthierRecipe | null>(null);
+  const [showingHealthier, setShowingHealthier] = useState(false);
   const [cookbookSheetOpen, setCookbookSheetOpen] = useState(false);
 
   if (!recipe) {
@@ -56,28 +56,35 @@ export default function RecipeDetail() {
   // Deep links have no history to pop — send those to the library instead.
   const goBack = () => (router.canGoBack() ? router.back() : router.replace(`/recipes`));
 
+  // A toggle, not a one-shot action: the first tap fetches and switches the
+  // ingredient list over, a second tap flips straight back — nothing is saved
+  // to the recipe until the user does that some other way (Edit recipe).
   const makeItHealthier = () => {
     if (!isPro) {
       router.push('/paywall');
       return;
     }
+    if (showingHealthier) {
+      setShowingHealthier(false);
+      setChecked({});
+      return;
+    }
+    if (healthier) {
+      setShowingHealthier(true);
+      setChecked({});
+      return;
+    }
+    if (healthifying) return;
     setHealthifying(true);
-    setHealthifyError(null);
     api
       .healthifyRecipe(recipe)
-      .then(setHealthierResult)
-      .catch((e: unknown) => setHealthifyError(e instanceof Error ? e.message : String(e)))
+      .then((result) => {
+        setHealthier(result);
+        setShowingHealthier(true);
+        setChecked({});
+      })
+      .catch((e: unknown) => toast.show(e instanceof Error ? e.message : 'Could not rework that recipe'))
       .finally(() => setHealthifying(false));
-  };
-
-  const applyHealthier = () => {
-    if (!healthierResult) return;
-    updateRecipe(recipe.id, {
-      ingredients: healthierResult.ingredients,
-      instructions: healthierResult.instructions,
-    });
-    setHealthierResult(null);
-    toast.show('Recipe updated');
   };
 
   const fav = isFavorite(recipe);
@@ -85,6 +92,8 @@ export default function RecipeDetail() {
   const scaled = factor !== 1;
   const macros = estimateMacros(recipe);
   const perServingCalories = Math.round(recipe.calories);
+  const displayedIngredients =
+    showingHealthier && healthier ? healthier.ingredients : recipe.ingredients;
 
   return (
     <Screen>
@@ -181,7 +190,13 @@ export default function RecipeDetail() {
               ],
               [
                 {
-                  label: isPro ? 'Make it healthier' : 'Make it healthier (Pro)',
+                  label: !isPro
+                    ? 'Make it healthier (Pro)'
+                    : healthifying
+                      ? 'Making it healthier…'
+                      : showingHealthier
+                        ? 'Show original ingredients'
+                        : 'Make it healthier',
                   tone: 'accent' as const,
                   onPress: makeItHealthier,
                 },
@@ -280,9 +295,12 @@ export default function RecipeDetail() {
               </View>
 
               <View style={{ marginTop: 12 }}>
-                {recipe.ingredients.map((ing, i) => {
+                {displayedIngredients.map((ing, i) => {
                   const m = convertMeasure(ing.qty, ing.unit, factor, metric);
                   const on = !!checked[i];
+                  // Blue (the brand mark's navy) flags the healthier swap so it
+                  // reads as "different from what you saved", not just picked.
+                  const healthierColor = showingHealthier && !on ? BRAND_NAVY : undefined;
                   return (
                     <Pressable
                       key={`${ing.name}-${i}`}
@@ -314,10 +332,14 @@ export default function RecipeDetail() {
                         style={{
                           flex: 1,
                           fontSize: 15,
-                          color: on ? c.textSec : c.text,
+                          color: healthierColor ?? (on ? c.textSec : c.text),
                           textDecorationLine: on ? 'line-through' : 'none',
                         }}>
-                        <Text style={{ fontWeight: '700', color: scaled && !on ? c.accent : undefined }}>
+                        <Text
+                          style={{
+                            fontWeight: '700',
+                            color: healthierColor ?? (scaled && !on ? c.accent : undefined),
+                          }}>
                           {m.qty}
                           {m.unit ? ` ${m.unit}` : ''}
                         </Text>
@@ -541,115 +563,6 @@ export default function RecipeDetail() {
                 <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>Delete</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Reworking the recipe — a single LLM call, not a queued job, so this is
-          just a loading state rather than the importing screen's step list. */}
-      {healthifying ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: c.overlay,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 32,
-          }}>
-          <View
-            style={{
-              width: '100%',
-              backgroundColor: c.surface,
-              borderRadius: 20,
-              padding: 26,
-              alignItems: 'center',
-              gap: 12,
-            }}>
-            <ActivityIndicator color={c.accent} />
-            <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>
-              Making it healthier…
-            </Text>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Result — the user reviews what changed before it overwrites anything. */}
-      {healthierResult ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: c.overlay,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 32,
-          }}>
-          <View
-            style={{
-              width: '100%',
-              backgroundColor: c.surface,
-              borderRadius: 20,
-              padding: 22,
-            }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>A healthier version</Text>
-            <Text style={{ marginTop: 8, fontSize: 14, lineHeight: 20, color: c.textSec }}>
-              {healthierResult.summary}
-            </Text>
-            <Text style={{ marginTop: 8, fontSize: 12.5, color: c.textSec }}>
-              {healthierResult.ingredients.length} ingredients ·{' '}
-              {healthierResult.instructions.length} steps
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-              <Button
-                title="Cancel"
-                variant="tinted"
-                style={{ flex: 1 }}
-                textStyle={{ fontSize: 15 }}
-                onPress={() => setHealthierResult(null)}
-              />
-              <Button title="Apply changes" style={{ flex: 1 }} onPress={applyHealthier} />
-            </View>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Failure — surfaced the same way as everywhere else this pattern is used. */}
-      {healthifyError ? (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: c.overlay,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 32,
-          }}>
-          <View
-            style={{
-              width: '100%',
-              backgroundColor: c.surface,
-              borderRadius: 20,
-              padding: 22,
-            }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>Couldn’t rework it</Text>
-            <Text style={{ marginTop: 8, fontSize: 14, lineHeight: 20, color: c.textSec }}>
-              {healthifyError}
-            </Text>
-            <Button
-              title="OK"
-              style={{ marginTop: 20 }}
-              onPress={() => setHealthifyError(null)}
-            />
           </View>
         </View>
       ) : null}
