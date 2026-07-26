@@ -16,7 +16,6 @@ const TILE_ICONS: Record<string, string> = {
   library: '▢',
   paste: '≡',
   write: '✎',
-  app: '⬇',
 };
 
 /** A loose check — good enough to decide whether to offer the clipboard banner. */
@@ -121,11 +120,6 @@ export default function AddRecipeSheet() {
         return;
       case 'library':
         pickImage('library');
-        return;
-      case 'app':
-        // The share-sheet extension is a separate native target — it only
-        // exists in a real build, never inside Expo Go.
-        toast.show('Importing from other apps needs a native build, not available in Expo Go');
         return;
     }
   };

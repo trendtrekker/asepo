@@ -124,7 +124,6 @@ export const ADD_TILES = [
   { id: 'library', label: 'Photo library', icon: 'library' },
   { id: 'paste', label: 'Paste text', icon: 'paste' },
   { id: 'idea', label: 'Type a meal', icon: 'write' },
-  { id: 'app', label: 'Import from another app', icon: 'app' },
 ] as const;
 
 export const LIMIT_BENEFITS = [
