@@ -2,57 +2,9 @@ import type { Ingredient } from '@/data/sample';
 import { formatQty, parseQty, pluralise } from '@/lib/quantity';
 
 /**
- * Grocery list maths: which aisle an ingredient belongs to, and how to merge
- * the same ingredient arriving from several recipes into one line.
+ * Grocery list maths: merging the same ingredient arriving from several
+ * recipes into one line, and grouping the list by the meal it's for.
  */
-
-export const AISLES = [
-  'Produce',
-  'Meat & Seafood',
-  'Dairy',
-  'Bakery',
-  'Frozen',
-  'Pantry',
-  'Other',
-] as const;
-
-export type Aisle = (typeof AISLES)[number];
-
-/** First keyword hit wins, so order within each list matters little. */
-const AISLE_KEYWORDS: Record<Exclude<Aisle, 'Other'>, string[]> = {
-  Produce: [
-    'onion', 'garlic', 'tomato', 'lemon', 'lime', 'cucumber', 'carrot', 'potato',
-    'spinach', 'kale', 'basil', 'cilantro', 'parsley', 'thyme', 'corn', 'avocado',
-    'pepper', 'mushroom', 'banana', 'blueberr', 'lettuce', 'cauliflower', 'ginger',
-    'spring onion', 'tomatillo', 'jalape', 'sprout', 'herb',
-  ],
-  'Meat & Seafood': [
-    'salmon', 'chicken', 'beef', 'steak', 'shrimp', 'pork', 'bacon', 'fish',
-    'thigh', 'mince', 'sausage',
-  ],
-  Dairy: [
-    'butter', 'milk', 'cream', 'cheese', 'parmesan', 'feta', 'ricotta', 'yoghurt',
-    'yogurt', 'halloumi', 'pecorino', 'egg',
-  ],
-  Bakery: ['bread', 'tortilla', 'bun', 'pita', 'baguette'],
-  Frozen: ['frozen', 'ice cream', 'peas'],
-  Pantry: [
-    'flour', 'sugar', 'rice', 'pasta', 'orzo', 'noodle', 'soba', 'oats', 'lentil',
-    'chickpea', 'bean', 'oil', 'vinegar', 'soy sauce', 'miso', 'mirin', 'stock',
-    'paste', 'chocolate', 'cocoa', 'baking', 'salt', 'spice', 'paprika', 'cumin',
-    'coriander', 'oregano', 'tahini', 'peanut', 'walnut', 'almond', 'sesame',
-    'honey', 'syrup', 'chia', 'coconut', 'curry', 'harissa', 'tamarind',
-    'fish sauce', 'wine', 'porcini', 'chilli', 'chili',
-  ],
-};
-
-export function categorize(name: string): Aisle {
-  const n = name.toLowerCase();
-  for (const aisle of Object.keys(AISLE_KEYWORDS) as Exclude<Aisle, 'Other'>[]) {
-    if (AISLE_KEYWORDS[aisle].some((kw) => n.includes(kw))) return aisle;
-  }
-  return 'Other';
-}
 
 /** "unsalted butter, softened" → "unsalted butter" */
 export function normalizeName(name: string): string {
@@ -64,7 +16,6 @@ export type GroceryItem = {
   name: string;
   qty: string;
   unit: string;
-  aisle: Aisle;
   checked: boolean;
   /** Titles of the recipes that contributed to this line. */
   sources: string[];
@@ -168,19 +119,10 @@ export function addIngredient(
       name: ingredient.name,
       qty: scaled === null ? ingredient.qty : formatQty(scaled),
       unit: scaled === null ? ingredient.unit : pluralise(ingredient.unit, scaled),
-      aisle: categorize(ingredient.name),
       checked: false,
       sources: [sourceTitle],
     },
   ];
-}
-
-/** Groups a list into aisle sections, preserving AISLES order and dropping empties. */
-export function groupByAisle(items: GroceryItem[]) {
-  return AISLES.map((aisle) => ({
-    aisle,
-    items: items.filter((i) => i.aisle === aisle),
-  })).filter((section) => section.items.length > 0);
 }
 
 /**

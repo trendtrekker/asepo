@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
 import { EmptyIllustration, Screen } from '@/components/ui';
-import { groupByAisle, groupByMeal } from '@/lib/grocery';
+import { groupByMeal } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -21,14 +21,10 @@ export default function Grocery() {
   } = useStore();
 
   const [draft, setDraft] = useState('');
-  const [groupMode, setGroupMode] = useState<'meal' | 'aisle'>('meal');
 
   const unchecked = grocery.filter((i) => !i.checked);
   const checked = grocery.filter((i) => i.checked);
-  const sections =
-    groupMode === 'meal'
-      ? groupByMeal(unchecked).map((s) => ({ label: s.meal, items: s.items }))
-      : groupByAisle(unchecked).map((s) => ({ label: s.aisle, items: s.items }));
+  const sections = groupByMeal(unchecked).map((s) => ({ label: s.meal, items: s.items }));
 
   const submit = () => {
     const v = draft.trim();
@@ -61,45 +57,6 @@ export default function Grocery() {
           </Pressable>
         ) : null}
       </View>
-
-      {grocery.length > 0 ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            backgroundColor: c.chipBg,
-            borderRadius: 10,
-            padding: 3,
-            marginHorizontal: 20,
-            marginTop: 14,
-            alignSelf: 'flex-start',
-          }}>
-          {[
-            { key: 'meal' as const, label: 'By meal' },
-            { key: 'aisle' as const, label: 'By aisle' },
-          ].map((opt) => (
-            <Pressable
-              key={opt.key}
-              onPress={() => setGroupMode(opt.key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: groupMode === opt.key }}
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 14,
-                borderRadius: 8,
-                backgroundColor: groupMode === opt.key ? c.surface : 'transparent',
-              }}>
-              <Text
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: '600',
-                  color: groupMode === opt.key ? c.text : c.textSec,
-                }}>
-                {opt.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 170 }}
@@ -163,21 +120,14 @@ export default function Grocery() {
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, color: c.text }}>{item.name}</Text>
-                  {/* In meal view the section header already says which recipe
-                      this is for — only worth repeating when it's shared with
-                      another meal too. Aisle view always needs it. */}
-                  {groupMode === 'aisle' || item.sources.length > 1 ? (
+                  {/* The section header already says which recipe this is for —
+                      only worth repeating when it's shared with another meal too. */}
+                  {item.sources.length > 1 ? (
                     <Text style={{ fontSize: 11.5, color: c.textSec, marginTop: 2 }}>
                       {item.sources.join(' · ')}
                     </Text>
                   ) : null}
                 </View>
-                {item.qty || item.unit ? (
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: c.textSec }}>
-                    {item.qty}
-                    {item.unit ? ` ${item.unit}` : ''}
-                  </Text>
-                ) : null}
               </Pressable>
             ))}
           </View>
