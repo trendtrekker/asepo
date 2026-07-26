@@ -1,6 +1,7 @@
 import { RECIPE_SAMPLES, SAMPLE_INGREDIENTS, SAMPLE_INSTRUCTIONS } from '@/data/sample';
 import type {
   ExtractedRecipe,
+  HealthierRecipe,
   ImageTask,
   ImportProgress,
   ImportSource,
@@ -54,5 +55,9 @@ export const fixtureApi: RecipeApi = {
 
   async getImageTask(taskId: string) {
     return { taskId, status: 'failed', error: 'No API configured' } satisfies ImageTask;
+  },
+
+  async healthifyRecipe(): Promise<HealthierRecipe> {
+    throw new Error('No API configured');
   },
 };

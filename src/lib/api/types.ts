@@ -60,6 +60,14 @@ export type ImageTask = {
   error?: string;
 };
 
+/** A reworked version of a recipe — shown to the user before they apply it. */
+export type HealthierRecipe = {
+  ingredients: Ingredient[];
+  instructions: string[];
+  /** Plain-language description of what changed. */
+  summary: string;
+};
+
 export interface RecipeApi {
   /** The user's saved library. */
   listRecipes(): Promise<Recipe[]>;
@@ -75,6 +83,9 @@ export interface RecipeApi {
 
   /** Polls a previously started image task. */
   getImageTask(taskId: string): Promise<ImageTask>;
+
+  /** Rewrites a recipe's ingredients and steps to be healthier. Pro-only. */
+  healthifyRecipe(recipe: Recipe): Promise<HealthierRecipe>;
 }
 
 /** Steps shown while extracting. The backend should emit indices into this list. */

@@ -5,6 +5,7 @@ import express from 'express';
 
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
+import { healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
 import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
 
 /**
@@ -13,6 +14,7 @@ import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
  *   GET  /import/:id    -> { status, step, label, recipe?, error? }
  *   POST /images        -> { taskId, status }
  *   GET  /images/:id    -> { taskId, status, url?, error? }
+ *   POST /healthify      -> { ingredients, instructions, summary }
  */
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -249,6 +251,35 @@ app.get('/images/:id', async (req, res) => {
   }
 
   res.json({ taskId: req.params.id, status: job.status, url: job.url, error: job.error });
+});
+
+/* ------------------------------------------------------------------ *
+ * Healthify — Pro-only, so the client gates the button; this endpoint
+ * doesn't re-check entitlement itself (no account/auth system yet).
+ * ------------------------------------------------------------------ */
+
+app.post('/healthify', async (req, res) => {
+  const { title, ingredients, instructions, servings } = req.body as {
+    title?: string;
+    ingredients?: { qty: string; unit: string; name: string }[];
+    instructions?: string[];
+    servings?: number;
+  };
+
+  if (!title || !ingredients?.length || !instructions?.length) {
+    return res.status(400).json({ error: 'title, ingredients and instructions are required' });
+  }
+  if (!isLlmConfigured()) {
+    return res.status(503).json({ error: 'Not configured — set LLM_API_KEY or KIE_API_KEY' });
+  }
+
+  try {
+    const result = await healthifyRecipe({ title, ingredients, instructions, servings });
+    res.json(result);
+  } catch (e) {
+    const error = e instanceof LlmError ? e.message : 'Could not rework that recipe';
+    res.status(e instanceof LlmError ? 422 : 500).json({ error });
+  }
 });
 
 app.listen(PORT, () => {

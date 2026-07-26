@@ -1,6 +1,7 @@
 import type { Recipe } from '@/data/sample';
 import type {
   ExtractedRecipe,
+  HealthierRecipe,
   ImageTask,
   ImportProgress,
   ImportSource,
@@ -112,6 +113,18 @@ export function createHttpApi(baseUrl: string): RecipeApi {
 
     async getImageTask(taskId: string) {
       return request<ImageTask>(base, `/images/${encodeURIComponent(taskId)}`);
+    },
+
+    async healthifyRecipe(recipe: Recipe) {
+      return request<HealthierRecipe>(base, '/healthify', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: recipe.title,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          servings: recipe.servings,
+        }),
+      });
     },
   };
 }

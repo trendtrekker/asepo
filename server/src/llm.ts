@@ -28,6 +28,13 @@ export type LlmRecipe = {
   inferred?: boolean;
 };
 
+export type HealthierRecipe = {
+  ingredients: Ingredient[];
+  instructions: string[];
+  /** Plain-language description of what changed, shown before the user applies it. */
+  summary: string;
+};
+
 export class LlmError extends Error {}
 
 type Protocol = 'responses' | 'messages' | 'chat';
@@ -138,6 +145,33 @@ Rules:
   is blurred or cut off, transcribe what is legible and skip the rest.
 - Case 2: give quantities and steps typical for the dish rather than leaving
   them blank — the user is relying on you for a usable recipe, not just a title.`;
+
+const HEALTHIER_SYSTEM_PROMPT = `You rewrite a recipe to be healthier, without turning it into a
+different dish. The user still wants to recognize what they're cooking.
+
+Prefer, where they make sense for this specific recipe:
+- Less added sugar, saturated fat, and sodium.
+- Lighter swaps for heavy ingredients (e.g. Greek yogurt for sour cream,
+  olive oil for butter, whole-grain for refined) — only when the swap
+  actually works for the dish, not automatically.
+- A lighter cooking method when it fits (bake/grill/air-fry instead of
+  deep-frying), and trimmed portions of the heaviest ingredients.
+
+Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
+{
+  "ingredients": [{"qty": string, "unit": string, "name": string}],
+  "instructions": [string],
+  "summary": string
+}
+
+Rules:
+- Keep the same overall dish and roughly the same number of servings' worth
+  of food — this is a healthier version of their recipe, not a new recipe.
+- Adjust instructions wherever an ingredient or method changed, so the steps
+  still match what's actually in the ingredient list.
+- "summary" is 1-2 short sentences, plain language, listing the concrete
+  changes made (e.g. "Swapped butter for olive oil, cut the sugar by half,
+  and baked instead of frying."). No hedging, no generic health advice.`;
 
 /** Pulls the assistant's text out of whichever response shape came back. */
 function textFrom(body: any): string | undefined {
@@ -298,6 +332,59 @@ export async function extractIdea(dishName: string): Promise<LlmRecipe> {
   const { path, body } = buildRequest(protocol, model, IDEA_SYSTEM_PROMPT, `Dish: ${dishName.slice(0, 200)}`);
   const payload = await callModel(baseUrl, apiKey, path, body);
   return toLlmRecipe(textFrom(payload), payload, dishName);
+}
+
+/** Rewrites a recipe's ingredients and steps to be healthier. Pro-only feature. */
+export async function healthifyRecipe(recipe: {
+  title: string;
+  ingredients: Ingredient[];
+  instructions: string[];
+  servings?: number;
+}): Promise<HealthierRecipe> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+
+  const user = [
+    `Title: ${recipe.title}`,
+    recipe.servings ? `Servings: ${recipe.servings}` : null,
+    'Ingredients:',
+    ...recipe.ingredients.map((i) => `- ${[i.qty, i.unit, i.name].filter(Boolean).join(' ')}`),
+    'Instructions:',
+    ...recipe.instructions.map((s, i) => `${i + 1}. ${s}`),
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const { path, body } = buildRequest(protocol, model, HEALTHIER_SYSTEM_PROMPT, user);
+  const payload = await callModel(baseUrl, apiKey, path, body);
+  const content = textFrom(payload);
+  if (!content) {
+    throw new LlmError(payload?.error?.message ?? payload?.msg ?? 'The language model returned nothing');
+  }
+
+  const parsed = parseJsonReply(content);
+  const ingredients: Ingredient[] = Array.isArray(parsed.ingredients)
+    ? parsed.ingredients
+        .map((i: any) => ({
+          qty: String(i?.qty ?? '').trim(),
+          unit: String(i?.unit ?? '').trim(),
+          name: String(i?.name ?? '').trim(),
+        }))
+        .filter((i: Ingredient) => i.name)
+    : [];
+  const instructions: string[] = Array.isArray(parsed.instructions)
+    ? parsed.instructions.map((s: any) => String(s).trim()).filter(Boolean)
+    : [];
+
+  if (!ingredients.length || !instructions.length) {
+    throw new LlmError('Could not rework that recipe');
+  }
+
+  return {
+    ingredients,
+    instructions,
+    summary: String(parsed.summary ?? '').trim() || 'Lightened up the ingredients and method.',
+  };
 }
 
 /**
