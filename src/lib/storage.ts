@@ -21,6 +21,8 @@ export type PersistedState = {
   onboarding: unknown;
   importsUsed: number;
   isPro: boolean;
+  /** Optional so a state saved before this field existed still loads. */
+  profileName?: string;
 };
 
 export async function loadState(): Promise<PersistedState | null> {

@@ -152,6 +152,10 @@ type Store = {
 
   /** Wipes local storage and reseeds — useful from Profile while developing. */
   resetEverything: () => void;
+
+  /* profile */
+  profileName: string;
+  setProfileName: (name: string) => void;
 };
 
 const AppContext = createContext<Store | null>(null);
@@ -170,6 +174,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [pendingImportSource, setPendingImportSource] = useState<ImportSource | null>(null);
   const [importsUsed, setImportsUsed] = useState(0);
   const [isPro, setPro] = useState(false);
+  const [profileName, setProfileName] = useState('');
 
   /** False until storage has been read, so we never save over saved data. */
   const [hydrated, setHydrated] = useState(false);
@@ -201,6 +206,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setOnboarding((saved.onboarding as Onboarding) ?? emptyOnboarding);
         setImportsUsed(saved.importsUsed ?? 0);
         setPro(saved.isPro ?? false);
+        setProfileName(saved.profileName ?? '');
       } else {
         await seedFromApi();
       }
@@ -227,8 +233,20 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       onboarding,
       importsUsed,
       isPro,
+      profileName,
     });
-  }, [hydrated, recipes, storedCookbooks, favorites, grocery, plan, onboarding, importsUsed, isPro]);
+  }, [
+    hydrated,
+    recipes,
+    storedCookbooks,
+    favorites,
+    grocery,
+    plan,
+    onboarding,
+    importsUsed,
+    isPro,
+    profileName,
+  ]);
 
   const addRecipeToGrocery = useCallback((recipe: Recipe, servings?: number) => {
     const factor = (servings ?? recipe.servings) / recipe.servings;
@@ -351,11 +369,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           setOnboarding(emptyOnboarding);
           setImportsUsed(0);
           setPro(false);
+          setProfileName('');
           setRecipes(RECIPE_SAMPLES);
           setStoredCookbooks(COOKBOOK_SEED);
           setFavorites(Object.fromEntries(RECIPE_SAMPLES.map((r) => [r.id, r.favorite])));
         });
       },
+
+      profileName,
+      setProfileName,
     }),
     [
       recipes,
@@ -371,6 +393,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       plan,
       importsUsed,
       isPro,
+      profileName,
       addRecipeToGrocery,
     ]
   );
