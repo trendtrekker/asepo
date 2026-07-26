@@ -12,7 +12,9 @@ import type { Ingredient, Recipe } from '@/data/sample';
 export type ImportSource =
   | { kind: 'url'; url: string }
   | { kind: 'text'; text: string }
-  | { kind: 'image'; uri: string };
+  | { kind: 'image'; uri: string }
+  /** Just a dish name ("Chicken Alfredo") — the model writes the whole recipe. */
+  | { kind: 'idea'; text: string };
 
 /** Progress ticks during extraction, so the importing screen can show real state. */
 export type ImportProgress = {

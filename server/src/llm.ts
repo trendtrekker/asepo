@@ -78,6 +78,36 @@ Rules:
   empty — the user needs actual steps to cook from, not just a shopping list.
   Set "inferred" to true in that case. Otherwise set it to false.`;
 
+const IDEA_SYSTEM_PROMPT = `The user names a dish they want to cook — just a name or a short
+phrase ("chicken alfredo", "the pad thai from that place downtown"), nothing
+else. Write a complete, standard recipe for it: typical ingredients with
+realistic quantities, and clear numbered steps. This is not extraction — there
+is no source text to read from, so write the recipe yourself from what you
+know about the dish.
+
+Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
+{
+  "isRecipe": boolean,
+  "title": string,
+  "servings": number | null,
+  "minutes": number | null,
+  "ingredients": [{"qty": string, "unit": string, "name": string}],
+  "instructions": [string]
+}
+
+Rules:
+- "isRecipe" is false only if the text doesn't name any real, identifiable
+  dish or food (e.g. it's gibberish or unrelated to cooking). A dish you don't
+  recognize by that exact name but can reasonably infer (a regional variant,
+  a plausible home-cooked version) still counts — do your best rather than
+  refusing.
+- Split each ingredient into quantity, unit and name. Use "" when a part is
+  genuinely optional or to taste, e.g. {"qty":"","unit":"","name":"salt, to taste"}.
+- The title is the dish name, cleaned up (proper capitalization, no filler
+  words the user typed around it).
+- Give a realistic total time and serving count for the dish rather than
+  leaving them null — the user is relying on you for the whole recipe.`;
+
 const VISION_SYSTEM_PROMPT = `You get a recipe from a photograph. Two kinds of photo come in:
 
 1. Written recipe — a cookbook page, a handwritten card, a screenshot of a recipe.
@@ -255,6 +285,19 @@ export async function extractWithLlm(sourceText: string, hintTitle?: string): Pr
   const { path, body } = buildRequest(protocol, model, SYSTEM_PROMPT, user);
   const payload = await callModel(baseUrl, apiKey, path, body);
   return toLlmRecipe(textFrom(payload), payload, hintTitle);
+}
+
+/**
+ * Writes a whole recipe from nothing but a dish name — "chicken alfredo".
+ * There's no source text to extract from, so this is pure generation.
+ */
+export async function extractIdea(dishName: string): Promise<LlmRecipe> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+
+  const { path, body } = buildRequest(protocol, model, IDEA_SYSTEM_PROMPT, `Dish: ${dishName.slice(0, 200)}`);
+  const payload = await callModel(baseUrl, apiKey, path, body);
+  return toLlmRecipe(textFrom(payload), payload, dishName);
 }
 
 /**

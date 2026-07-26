@@ -3,7 +3,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
-import { extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
+import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
 
@@ -102,6 +102,7 @@ const PIPELINES = {
   web: ['Fetching the page', 'Reading the recipe', 'Finding ingredients', 'Structuring the recipe'],
   text: ['Reading your text', 'Finding ingredients', 'Structuring the recipe', 'Checking the result'],
   image: ['Uploading the photo', 'Reading the photo', 'Finding ingredients', 'Structuring the recipe'],
+  idea: ['Looking up the dish', 'Writing ingredients', 'Writing the steps', 'Structuring the recipe'],
 } as const;
 
 const SOCIAL_HOSTS = /tiktok|instagram|youtube|youtu\.be|facebook|pinterest/i;
@@ -109,6 +110,7 @@ const SOCIAL_HOSTS = /tiktok|instagram|youtube|youtu\.be|facebook|pinterest/i;
 function pipelineFor(source: { kind?: string; url?: string }): readonly string[] {
   if (source.kind === 'text') return PIPELINES.text;
   if (source.kind === 'image') return PIPELINES.image;
+  if (source.kind === 'idea') return PIPELINES.idea;
   return source.url && SOCIAL_HOSTS.test(source.url) ? PIPELINES.social : PIPELINES.web;
 }
 
@@ -139,8 +141,10 @@ app.post('/import', (req, res) => {
         recipe = await extractFromText(source.text);
       } else if (source.kind === 'image' && source.uri) {
         recipe = await extractFromImage(source.uri);
+      } else if (source.kind === 'idea' && source.text) {
+        recipe = await extractFromIdea(source.text);
       } else {
-        throw new ExtractionError('Send either a link, some recipe text, or a photo');
+        throw new ExtractionError('Send either a link, some recipe text, a photo, or a dish name');
       }
 
       // The fetch and extraction are the slow part; the rest is near-instant.

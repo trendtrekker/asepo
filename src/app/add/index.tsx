@@ -110,8 +110,8 @@ export default function AddRecipeSheet() {
 
   const openTile = (id: string) => {
     switch (id) {
-      case 'write':
-        router.replace('/add/manual');
+      case 'idea':
+        router.push('/add/idea');
         return;
       case 'paste':
         router.push('/add/paste-text');

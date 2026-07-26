@@ -123,7 +123,7 @@ export const ADD_TILES = [
   { id: 'scan', label: 'Scan a photo', icon: 'camera' },
   { id: 'library', label: 'Photo library', icon: 'library' },
   { id: 'paste', label: 'Paste text', icon: 'paste' },
-  { id: 'write', label: 'Write it myself', icon: 'write' },
+  { id: 'idea', label: 'Type a meal', icon: 'write' },
   { id: 'app', label: 'Import from another app', icon: 'app' },
 ] as const;
 

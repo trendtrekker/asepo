@@ -1,7 +1,7 @@
 import { assertPublicUrl, fetchHtml, FetchError } from './fetch-page.js';
 import { parseCaption } from './heuristic.js';
 import { parseIngredient, parseIsoDuration, parseYield, type Ingredient } from './ingredients.js';
-import { extractWithImage, extractWithLlm, isLlmConfigured, isVisionConfigured, LlmError } from './llm.js';
+import { extractIdea, extractWithImage, extractWithLlm, isLlmConfigured, isVisionConfigured, LlmError } from './llm.js';
 import { gatherSourceText, platformOf } from './source-text.js';
 
 /**
@@ -26,7 +26,7 @@ export type ExtractedRecipe = {
   source?: { handle: string; platform: string };
   confidence?: number;
   /** Which strategy produced this, for debugging and telemetry. */
-  strategy?: 'json-ld' | 'llm' | 'llm-inferred' | 'heuristic' | 'vision' | 'vision-inferred';
+  strategy?: 'json-ld' | 'llm' | 'llm-inferred' | 'llm-idea' | 'heuristic' | 'vision' | 'vision-inferred';
 };
 
 export class ExtractionError extends Error {}
@@ -242,6 +242,34 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
   }
 
   throw new ExtractionError('Could not find a recipe in that text');
+}
+
+/**
+ * Import from just a dish name the user typed — "chicken alfredo". Nothing to
+ * extract here, no caption or page to fall back to: the model writes the
+ * whole recipe, so this is entirely dependent on it being configured.
+ */
+export async function extractFromIdea(dishName: string): Promise<ExtractedRecipe> {
+  const trimmed = dishName.trim();
+  if (!trimmed) {
+    throw new ExtractionError('Type a dish first');
+  }
+  if (!isLlmConfigured()) {
+    throw new ExtractionError('Looking up a recipe needs a language model, which is not configured');
+  }
+
+  const llm = await extractIdea(trimmed).catch((e) => {
+    throw new ExtractionError(e instanceof LlmError ? e.message : 'Could not find that recipe');
+  });
+
+  return {
+    ...llm,
+    source: { handle: 'Generated recipe', platform: 'Manual' },
+    // Written from general knowledge of the dish, not read from anywhere —
+    // meaningfully less certain than transcribing or extracting real text.
+    confidence: 0.5,
+    strategy: 'llm-idea',
+  };
 }
 
 /**
