@@ -59,7 +59,8 @@ export default function Grocery() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 170 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled">
         {grocery.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 30, paddingHorizontal: 20 }}>
@@ -185,14 +186,14 @@ export default function Grocery() {
         ) : null}
       </ScrollView>
 
-      {/* Quick add */}
+      {/* Quick add — a normal docked bar, not floating over the list.
+          marginBottom still clears the tab bar's "Add a recipe" FAB, which
+          floats independently above the tab bar itself. */}
       <View
         style={{
-          position: 'absolute',
-          left: 20,
-          right: 20,
-          // Clears the floating + button, which hangs 70pt above the tab bar.
-          bottom: insets.bottom + 122,
+          marginHorizontal: 20,
+          marginTop: 12,
+          marginBottom: insets.bottom + 90,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 8,
