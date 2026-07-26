@@ -26,6 +26,10 @@ export default function CookbookDetail() {
   const [renameValue, setRenameValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { cookbooks, recipesInCookbook, renameCookbook, deleteCookbook } = useStore();
+  // Reachable with no back-history (a fresh deep link, or after this stack's
+  // one entry was this screen) — router.back() then fails with a GO_BACK
+  // warning and leaves the user stranded, so fall back to the list.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/cookbooks'));
 
   const cookbook = cookbooks.find((cb) => cb.id === id);
 
@@ -34,7 +38,7 @@ export default function CookbookDetail() {
     return (
       <Screen style={{ alignItems: 'center', justifyContent: 'center', padding: 30 }}>
         <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>Cookbook not found</Text>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" style={{ marginTop: 12 }}>
+        <Pressable onPress={goBack} accessibilityRole="button" style={{ marginTop: 12 }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accent }}>Go back</Text>
         </Pressable>
       </Screen>
@@ -91,7 +95,7 @@ export default function CookbookDetail() {
 
       {/* Floating chrome */}
       <ScrimButton
-        onPress={() => router.back()}
+        onPress={goBack}
         style={{ position: 'absolute', top: insets.top + 8, left: 16 }}>
         <ChevronLeft color="#fff" />
       </ScrimButton>
@@ -241,7 +245,7 @@ export default function CookbookDetail() {
                 onPress={() => {
                   setConfirmDelete(false);
                   deleteCookbook(cookbook.id);
-                  router.back();
+                  goBack();
                   toast.show(`Deleted “${cookbook.name}”`);
                 }}
                 accessibilityRole="button"
