@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,12 +18,15 @@ export default function NewCookbook() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { recipes: allRecipes, createCookbook } = useStore();
+  const { preselect } = useLocalSearchParams<{ preselect?: string }>();
 
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [color, setColor] = useState(COOKBOOK_COLORS[0]);
   const [emoji, setEmoji] = useState(COOKBOOK_EMOJIS[0]);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+    preselect ? { [preselect]: true } : {}
+  );
 
   const create = () => {
     const trimmed = name.trim();

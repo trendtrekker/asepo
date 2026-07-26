@@ -99,6 +99,10 @@ type Store = {
   cookbooks: Cookbook[];
   recipesInCookbook: (id: string) => Recipe[];
   createCookbook: (input: NewCookbook) => string;
+  addRecipeToCookbook: (recipeId: string, cookbookId: string) => void;
+  removeRecipeFromCookbook: (recipeId: string, cookbookId: string) => void;
+  renameCookbook: (id: string, name: string) => void;
+  deleteCookbook: (id: string) => void;
 
   /* the recipe currently being imported, handed from extraction to review */
   pendingImport: ExtractedRecipe | null;
@@ -272,6 +276,32 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           );
         }
         return id;
+      },
+      addRecipeToCookbook: (recipeId, cookbookId) =>
+        setRecipes((list) =>
+          list.map((r) =>
+            r.id === recipeId && !r.cookbooks.includes(cookbookId)
+              ? { ...r, cookbooks: [...r.cookbooks, cookbookId] }
+              : r
+          )
+        ),
+      removeRecipeFromCookbook: (recipeId, cookbookId) =>
+        setRecipes((list) =>
+          list.map((r) =>
+            r.id === recipeId ? { ...r, cookbooks: r.cookbooks.filter((id) => id !== cookbookId) } : r
+          )
+        ),
+      renameCookbook: (id, name) =>
+        setStoredCookbooks((list) => list.map((cb) => (cb.id === id ? { ...cb, name } : cb))),
+      deleteCookbook: (id) => {
+        setStoredCookbooks((list) => list.filter((cb) => cb.id !== id));
+        // Membership lives on the recipe, so drop the reference there too —
+        // otherwise a recipe keeps pointing at a cookbook that no longer exists.
+        setRecipes((list) =>
+          list.map((r) =>
+            r.cookbooks.includes(id) ? { ...r, cookbooks: r.cookbooks.filter((cid) => cid !== id) } : r
+          )
+        );
       },
 
       pendingImport,

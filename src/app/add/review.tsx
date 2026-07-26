@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CookbookPickerSheet } from '@/components/cookbook-picker-sheet';
 import { DragHandle } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen, SectionTitle } from '@/components/ui';
@@ -21,7 +22,7 @@ export default function ImportReview() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { pendingImport, addRecipe, setPendingImport } = useStore();
+  const { pendingImport, addRecipe, setPendingImport, cookbooks } = useStore();
 
   const [title, setTitle] = useState(pendingImport?.title ?? '');
   const [minutes, setMinutes] = useState(
@@ -95,6 +96,13 @@ export default function ImportReview() {
   const updateIngredient = (key: number, patch: Partial<Ingredient>) =>
     setIngredients((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
+  // The recipe doesn't exist yet, so membership lives here locally until save.
+  const [selectedCookbooks, setSelectedCookbooks] = useState<Record<string, boolean>>({});
+  const [cookbookSheetOpen, setCookbookSheetOpen] = useState(false);
+  const selectedCookbookNames = cookbooks
+    .filter((cb) => selectedCookbooks[cb.id])
+    .map((cb) => cb.name);
+
   /**
    * The banner adapts to how the recipe was obtained. JSON-LD is published by
    * the site itself, so nagging the user to check it is noise; a model reading
@@ -130,7 +138,7 @@ export default function ImportReview() {
       difficulty: 'Easy',
       diets: [],
       tags: [],
-      cookbooks: [],
+      cookbooks: Object.keys(selectedCookbooks).filter((id) => selectedCookbooks[id]),
       rating: 0,
       cookedCount: 0,
       addedAt: Date.now(),
@@ -392,7 +400,7 @@ export default function ImportReview() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => toast.show('Cookbook picker isn\u2019t designed yet')}
+            onPress={() => setCookbookSheetOpen(true)}
             style={{
               marginTop: 14,
               flexDirection: 'row',
@@ -403,8 +411,8 @@ export default function ImportReview() {
               borderTopColor: c.border,
             }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Save to cookbook</Text>
-            <Text style={{ fontSize: 14, fontWeight: '500', color: c.textSec }}>
-              Weeknight Dinners ›
+            <Text style={{ fontSize: 14, fontWeight: '500', color: c.textSec }} numberOfLines={1}>
+              {selectedCookbookNames.length ? selectedCookbookNames.join(', ') : 'None'} ›
             </Text>
           </Pressable>
         </View>
@@ -413,6 +421,14 @@ export default function ImportReview() {
           <Button title="Save recipe" onPress={save} />
         </View>
       </ScrollView>
+
+      {cookbookSheetOpen ? (
+        <CookbookPickerSheet
+          selected={selectedCookbooks}
+          onToggle={(id) => setSelectedCookbooks((s) => ({ ...s, [id]: !s[id] }))}
+          onClose={() => setCookbookSheetOpen(false)}
+        />
+      ) : null}
     </Screen>
   );
 }

@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check, ChevronLeft, Heart, MoreHorizontal } from '@/components/icons';
+import { CookbookPickerSheet } from '@/components/cookbook-picker-sheet';
 import { RecipeImage } from '@/components/recipe-image';
 import { useToast } from '@/components/toast';
 import { Button, Screen, ScrimButton } from '@/components/ui';
@@ -36,6 +37,7 @@ export default function RecipeDetail() {
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cookbookSheetOpen, setCookbookSheetOpen] = useState(false);
 
   if (!recipe) {
     return (
@@ -422,7 +424,11 @@ export default function RecipeDetail() {
               key={label}
               onPress={() => {
                 setMenuOpen(false);
-                toast.show(`${label} isn’t wired up yet`);
+                if (label === 'Add to cookbook') {
+                  setCookbookSheetOpen(true);
+                } else if (label === 'Share') {
+                  Share.share({ message: `Check out “${recipe.title}” on Asepo` }).catch(() => {});
+                }
               }}
               accessibilityRole="menuitem"
               style={{ paddingVertical: 11, paddingHorizontal: 14 }}>
@@ -437,6 +443,10 @@ export default function RecipeDetail() {
             </Pressable>
           ))}
         </View>
+      ) : null}
+
+      {cookbookSheetOpen ? (
+        <CookbookPickerSheet recipeId={recipe.id} onClose={() => setCookbookSheetOpen(false)} />
       ) : null}
 
       {/* Delete confirmation — destructive, so never a single tap. */}

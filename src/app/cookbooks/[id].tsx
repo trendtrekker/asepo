@@ -1,13 +1,14 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CookbookCollage } from '@/components/cookbook-collage';
 import { ChevronLeft, MoreHorizontal } from '@/components/icons';
 import { RecipeGridCard } from '@/components/recipe-card';
-import { Screen, ScrimButton } from '@/components/ui';
+import { RecipePickerSheet } from '@/components/recipe-picker-sheet';
+import { Button, Screen, ScrimButton, SheetHandle } from '@/components/ui';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -20,7 +21,11 @@ export default function CookbookDetail() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { cookbooks, recipesInCookbook } = useStore();
+  const [addRecipesOpen, setAddRecipesOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { cookbooks, recipesInCookbook, renameCookbook, deleteCookbook } = useStore();
 
   const cookbook = cookbooks.find((cb) => cb.id === id);
 
@@ -62,7 +67,7 @@ export default function CookbookDetail() {
         <View style={{ padding: 20 }}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => toast.show('Recipe picker isn\u2019t designed yet')}
+            onPress={() => setAddRecipesOpen(true)}
             style={{
               height: 46,
               borderRadius: 23,
@@ -117,7 +122,19 @@ export default function CookbookDetail() {
           {['Rename', 'Change cover', 'Share', 'Delete'].map((label) => (
             <Pressable
               key={label}
-              onPress={() => setMenuOpen(false)}
+              onPress={() => {
+                setMenuOpen(false);
+                if (label === 'Rename') {
+                  setRenameValue(cookbook.name);
+                  setRenaming(true);
+                } else if (label === 'Change cover') {
+                  toast.show('Photo picker comes with the backend');
+                } else if (label === 'Share') {
+                  Share.share({ message: `Check out my “${cookbook.name}” cookbook on Asepo` }).catch(() => {});
+                } else if (label === 'Delete') {
+                  setConfirmDelete(true);
+                }
+              }}
               accessibilityRole="menuitem"
               style={{ paddingVertical: 11, paddingHorizontal: 14 }}>
               <Text
@@ -130,6 +147,117 @@ export default function CookbookDetail() {
               </Text>
             </Pressable>
           ))}
+        </View>
+      ) : null}
+
+      {addRecipesOpen ? (
+        <RecipePickerSheet cookbookId={cookbook.id} onClose={() => setAddRecipesOpen(false)} />
+      ) : null}
+
+      {renaming ? (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={() => setRenaming(false)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.overlay }}
+          />
+          <View
+            style={{
+              backgroundColor: c.surface,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingBottom: insets.bottom + 20,
+              paddingHorizontal: 20,
+            }}>
+            <SheetHandle />
+            <Text style={{ fontSize: 20, fontWeight: '700', color: c.text }}>Rename cookbook</Text>
+            <TextInput
+              value={renameValue}
+              onChangeText={setRenameValue}
+              autoFocus
+              style={{
+                marginTop: 16,
+                height: 48,
+                borderRadius: 12,
+                backgroundColor: c.inputBg,
+                borderWidth: 1,
+                borderColor: c.border,
+                paddingHorizontal: 14,
+                fontSize: 16,
+                color: c.text,
+              }}
+            />
+            <View style={{ marginTop: 16 }}>
+              <Button
+                title="Save"
+                onPress={() => {
+                  const trimmed = renameValue.trim();
+                  if (trimmed) renameCookbook(cookbook.id, trimmed);
+                  setRenaming(false);
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Delete confirmation — destructive, so never a single tap. */}
+      {confirmDelete ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: c.overlay,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          }}>
+          <View
+            style={{
+              width: '100%',
+              backgroundColor: c.surface,
+              borderRadius: 20,
+              padding: 22,
+            }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>
+              Delete this cookbook?
+            </Text>
+            <Text style={{ marginTop: 8, fontSize: 14, lineHeight: 20, color: c.textSec }}>
+              “{cookbook.name}” will be removed. The recipes inside stay in your library.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Button
+                title="Cancel"
+                variant="tinted"
+                style={{ flex: 1 }}
+                textStyle={{ fontSize: 15 }}
+                onPress={() => setConfirmDelete(false)}
+              />
+              <Pressable
+                onPress={() => {
+                  setConfirmDelete(false);
+                  deleteCookbook(cookbook.id);
+                  router.back();
+                  toast.show(`Deleted “${cookbook.name}”`);
+                }}
+                accessibilityRole="button"
+                style={({ pressed }) => ({
+                  flex: 1,
+                  height: 52,
+                  borderRadius: 26,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: c.danger,
+                  opacity: pressed ? 0.8 : 1,
+                })}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       ) : null}
     </Screen>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CookbookPickerSheet } from '@/components/cookbook-picker-sheet';
 import { ImagePlaceholderIcon } from '@/components/icons';
 import { Button, Screen, SectionTitle } from '@/components/ui';
 import type { Recipe } from '@/data/sample';
@@ -19,11 +20,16 @@ export default function ManualEditor() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { addRecipe } = useStore();
+  const { addRecipe, cookbooks } = useStore();
 
   const [title, setTitle] = useState('');
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const [selectedCookbooks, setSelectedCookbooks] = useState<Record<string, boolean>>({});
+  const [cookbookSheetOpen, setCookbookSheetOpen] = useState(false);
+  const selectedCookbookNames = cookbooks
+    .filter((cb) => selectedCookbooks[cb.id])
+    .map((cb) => cb.name);
 
   const updateIngredient = (key: number, patch: Partial<Ingredient>) =>
     setIngredients((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -42,7 +48,7 @@ export default function ManualEditor() {
       difficulty: 'Easy',
       diets: [],
       tags: [],
-      cookbooks: [],
+      cookbooks: Object.keys(selectedCookbooks).filter((id) => selectedCookbooks[id]),
       rating: 0,
       cookedCount: 0,
       addedAt: Date.now(),
@@ -246,12 +252,38 @@ export default function ManualEditor() {
             label="+ Add step"
             onPress={() => setInstructions((l) => [...l, { key: Date.now(), text: '' }])}
           />
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setCookbookSheetOpen(true)}
+            style={{
+              marginTop: 22,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 14,
+              borderTopWidth: 1,
+              borderTopColor: c.border,
+            }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Save to cookbook</Text>
+            <Text style={{ fontSize: 14, fontWeight: '500', color: c.textSec }} numberOfLines={1}>
+              {selectedCookbookNames.length ? selectedCookbookNames.join(', ') : 'None'} ›
+            </Text>
+          </Pressable>
         </View>
 
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <Button title="Save recipe" onPress={save} />
         </View>
       </ScrollView>
+
+      {cookbookSheetOpen ? (
+        <CookbookPickerSheet
+          selected={selectedCookbooks}
+          onToggle={(id) => setSelectedCookbooks((s) => ({ ...s, [id]: !s[id] }))}
+          onClose={() => setCookbookSheetOpen(false)}
+        />
+      ) : null}
     </Screen>
   );
 }
