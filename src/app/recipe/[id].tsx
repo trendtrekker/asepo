@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Check, ChevronLeft, Heart, MoreHorizontal } from '@/components/icons';
+import { Check, ChevronLeft, Heart, Leaf, MoreHorizontal } from '@/components/icons';
 import { CookbookPickerSheet } from '@/components/cookbook-picker-sheet';
 import { RecipeImage } from '@/components/recipe-image';
 import { useToast } from '@/components/toast';
@@ -15,7 +15,6 @@ import { convertMeasure } from '@/lib/quantity';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
-import { BRAND_NAVY } from '@/theme/tokens';
 
 type Tab = 'Ingredients' | 'Steps' | 'Nutrition';
 
@@ -219,6 +218,7 @@ export default function RecipeDetail() {
                         ? 'Show original ingredients'
                         : 'Make it healthier',
                   tone: 'accent' as const,
+                  icon: <Leaf color={c.success} size={13} />,
                   onPress: makeItHealthier,
                 },
               ],
@@ -319,9 +319,9 @@ export default function RecipeDetail() {
                 {displayedIngredients.map((ing, i) => {
                   const m = convertMeasure(ing.qty, ing.unit, factor, metric);
                   const on = !!checked[i];
-                  // Blue (the brand mark's navy) flags the healthier swap so it
-                  // reads as "different from what you saved", not just picked.
-                  const healthierColor = showingHealthier && !on ? BRAND_NAVY : undefined;
+                  // Green flags the healthier swap so it reads as "different
+                  // from what you saved", not just picked.
+                  const healthierColor = showingHealthier && !on ? c.success : undefined;
                   return (
                     <Pressable
                       key={`${ing.name}-${i}`}
@@ -648,10 +648,12 @@ export default function RecipeDetail() {
 function ActionPill({
   label,
   tone = 'neutral',
+  icon,
   onPress,
 }: {
   label: string;
   tone?: 'neutral' | 'accent' | 'danger';
+  icon?: React.ReactNode;
   onPress: () => void;
 }) {
   const c = useColors();
@@ -671,8 +673,10 @@ function ActionPill({
         // spans the full section width.
         flex: 1,
         height: 44,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 6,
         paddingHorizontal: 8,
         borderRadius: 22,
         backgroundColor: palette.bg,
@@ -680,6 +684,7 @@ function ActionPill({
         borderColor: c.border,
         opacity: pressed ? 0.7 : 1,
       })}>
+      {icon}
       <Text
         numberOfLines={1}
         style={{ fontSize: 13.5, fontWeight: '600', color: palette.fg }}>

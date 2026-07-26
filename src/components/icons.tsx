@@ -81,6 +81,26 @@ export function Check({ color, size = 12 }: IconProps) {
   );
 }
 
+/** Single leaf — used to flag "healthier" content (Make it healthier). */
+export function Leaf({ color, size = 14 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 16 16">
+      <Path
+        d="M13.5 2.5C7 2.5 2.5 7 2.5 13.5c6.5 0 11-4.5 11-11z"
+        fill={color}
+      />
+      <Path
+        d="M4 12.5C7 8.5 9.5 6 13 3.2"
+        stroke="#fff"
+        strokeWidth={1.1}
+        fill="none"
+        strokeLinecap="round"
+        opacity={0.55}
+      />
+    </Svg>
+  );
+}
+
 export function Search({ color, size = 15 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 15 15">
