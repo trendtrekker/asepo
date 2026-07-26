@@ -5,6 +5,7 @@ import type {
   ImageTask,
   ImportProgress,
   ImportSource,
+  NutritionEstimate,
   RecipeApi,
 } from '@/lib/api/types';
 import { IMPORT_PIPELINE } from '@/lib/api/types';
@@ -58,6 +59,10 @@ export const fixtureApi: RecipeApi = {
   },
 
   async healthifyRecipe(): Promise<HealthierRecipe> {
+    throw new Error('No API configured');
+  },
+
+  async estimateNutrition(): Promise<NutritionEstimate> {
     throw new Error('No API configured');
   },
 };

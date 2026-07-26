@@ -35,6 +35,14 @@ export type HealthierRecipe = {
   summary: string;
 };
 
+/** Per-serving estimate. */
+export type NutritionEstimate = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
 export class LlmError extends Error {}
 
 type Protocol = 'responses' | 'messages' | 'chat';
@@ -172,6 +180,29 @@ Rules:
 - "summary" is 1-2 short sentences, plain language, listing the concrete
   changes made (e.g. "Swapped butter for olive oil, cut the sugar by half,
   and baked instead of frying."). No hedging, no generic health advice.`;
+
+const NUTRITION_SYSTEM_PROMPT = `You estimate nutrition facts for a recipe from its ingredient list.
+Work out realistic totals from the actual ingredients and quantities given —
+don't guess a generic split for the type of dish, reason about what's really
+in it (e.g. a cup of heavy cream contributes real fat and calories; a cup of
+spinach barely contributes anything).
+
+Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
+{
+  "calories": number,
+  "protein": number,
+  "carbs": number,
+  "fat": number
+}
+
+Rules:
+- All four numbers are PER SERVING, using the servings count given. Divide
+  your total-recipe estimate by the serving count yourself.
+- protein/carbs/fat are grams. calories should be reasonably close to
+  4*protein + 4*carbs + 9*fat, since that's how they're derived from grams.
+- Round to whole numbers. Give your best realistic estimate rather than a
+  round/generic-looking number — real recipes rarely land on exact multiples
+  of 50.`;
 
 /** Pulls the assistant's text out of whichever response shape came back. */
 function textFrom(body: any): string | undefined {
@@ -385,6 +416,49 @@ export async function healthifyRecipe(recipe: {
     instructions,
     summary: String(parsed.summary ?? '').trim() || 'Lightened up the ingredients and method.',
   };
+}
+
+/**
+ * Estimates per-serving nutrition from a recipe's actual ingredient list —
+ * not a canned macro ratio for the dish type, a real reasoning pass over
+ * what's in it.
+ */
+export async function estimateNutrition(recipe: {
+  title: string;
+  ingredients: Ingredient[];
+  servings: number;
+}): Promise<NutritionEstimate> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+
+  const user = [
+    `Title: ${recipe.title}`,
+    `Servings: ${recipe.servings}`,
+    'Ingredients:',
+    ...recipe.ingredients.map((i) => `- ${[i.qty, i.unit, i.name].filter(Boolean).join(' ')}`),
+  ].join('\n');
+
+  const { path, body } = buildRequest(protocol, model, NUTRITION_SYSTEM_PROMPT, user);
+  const payload = await callModel(baseUrl, apiKey, path, body);
+  const content = textFrom(payload);
+  if (!content) {
+    throw new LlmError(payload?.error?.message ?? payload?.msg ?? 'The language model returned nothing');
+  }
+
+  const parsed = parseJsonReply(content);
+  const toNumber = (v: any) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : NaN);
+  const result: NutritionEstimate = {
+    calories: toNumber(parsed.calories),
+    protein: toNumber(parsed.protein),
+    carbs: toNumber(parsed.carbs),
+    fat: toNumber(parsed.fat),
+  };
+
+  if (Object.values(result).some((n) => Number.isNaN(n))) {
+    throw new LlmError('Could not estimate nutrition for that recipe');
+  }
+
+  return result;
 }
 
 /**

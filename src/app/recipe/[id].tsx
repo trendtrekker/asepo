@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check, ChevronLeft, Heart, MoreHorizontal } from '@/components/icons';
@@ -10,8 +10,7 @@ import { RecipeImage } from '@/components/recipe-image';
 import { useToast } from '@/components/toast';
 import { Button, Screen, ScrimButton } from '@/components/ui';
 import { calLabel, timeLabel } from '@/data/sample';
-import { api, type HealthierRecipe } from '@/lib/api';
-import { estimateMacros } from '@/lib/nutrition';
+import { api, type HealthierRecipe, type NutritionEstimate } from '@/lib/api';
 import { convertMeasure } from '@/lib/quantity';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
@@ -43,6 +42,9 @@ export default function RecipeDetail() {
   const [healthier, setHealthier] = useState<HealthierRecipe | null>(null);
   const [showingHealthier, setShowingHealthier] = useState(false);
   const [cookbookSheetOpen, setCookbookSheetOpen] = useState(false);
+  const [nutrition, setNutrition] = useState<NutritionEstimate | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(false);
+  const [nutritionError, setNutritionError] = useState<string | null>(null);
 
   if (!recipe) {
     return (
@@ -87,11 +89,30 @@ export default function RecipeDetail() {
       .finally(() => setHealthifying(false));
   };
 
+  // Nutrition is Pro-only, and its estimate is fetched lazily (only once the
+  // user actually opens the tab) and cached for the rest of this visit.
+  const openTab = (t: Tab) => {
+    if (t === 'Nutrition' && !isPro) {
+      router.push('/paywall');
+      return;
+    }
+    setTab(t);
+    if (t === 'Nutrition' && !nutrition && !nutritionLoading) {
+      setNutritionLoading(true);
+      setNutritionError(null);
+      api
+        .estimateNutrition(recipe)
+        .then(setNutrition)
+        .catch((e: unknown) =>
+          setNutritionError(e instanceof Error ? e.message : 'Could not estimate nutrition')
+        )
+        .finally(() => setNutritionLoading(false));
+    }
+  };
+
   const fav = isFavorite(recipe);
   const factor = servings / recipe.servings;
   const scaled = factor !== 1;
-  const macros = estimateMacros(recipe);
-  const perServingCalories = Math.round(recipe.calories);
   const displayedIngredients =
     showingHealthier && healthier ? healthier.ingredients : recipe.ingredients;
 
@@ -224,7 +245,7 @@ export default function RecipeDetail() {
               return (
                 <Pressable
                   key={t}
-                  onPress={() => setTab(t)}
+                  onPress={() => openTab(t)}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: active }}
                   style={{
@@ -236,7 +257,7 @@ export default function RecipeDetail() {
                   }}>
                   <Text
                     style={{ fontSize: 13.5, fontWeight: '600', color: active ? c.text : c.textSec }}>
-                    {t}
+                    {t === 'Nutrition' && !isPro ? 'Nutrition 🔒' : t}
                   </Text>
                 </Pressable>
               );
@@ -403,40 +424,70 @@ export default function RecipeDetail() {
 
           {tab === 'Nutrition' ? (
             <View style={{ marginTop: 18 }}>
-              <View
-                style={{
-                  backgroundColor: c.chipBg,
-                  borderRadius: 16,
-                  padding: 18,
-                  alignItems: 'center',
-                }}>
-                <Text style={{ fontSize: 34, fontWeight: '700', color: c.text }}>
-                  {perServingCalories}
-                </Text>
-                <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
-                  calories per serving
-                </Text>
-              </View>
+              {nutritionLoading ? (
+                <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
+                  <ActivityIndicator color={c.accent} />
+                  <Text style={{ fontSize: 13.5, color: c.textSec }}>
+                    Estimating nutrition from the ingredients…
+                  </Text>
+                </View>
+              ) : nutritionError ? (
+                <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
+                  <Text style={{ fontSize: 13.5, color: c.textSec, textAlign: 'center' }}>
+                    {nutritionError}
+                  </Text>
+                  <Pressable onPress={() => openTab('Nutrition')} accessibilityRole="button">
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.accent }}>Try again</Text>
+                  </Pressable>
+                </View>
+              ) : nutrition ? (
+                <>
+                  <View
+                    style={{
+                      backgroundColor: c.chipBg,
+                      borderRadius: 16,
+                      padding: 18,
+                      alignItems: 'center',
+                    }}>
+                    <Text style={{ fontSize: 34, fontWeight: '700', color: c.text }}>
+                      {nutrition.calories}
+                    </Text>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
+                      calories per serving
+                    </Text>
+                  </View>
 
-              <View style={{ marginTop: 16, gap: 14 }}>
-                <MacroBar label="Protein" grams={macros.protein} total={recipe.calories} kcalPerGram={4} />
-                <MacroBar label="Carbs" grams={macros.carbs} total={recipe.calories} kcalPerGram={4} />
-                <MacroBar label="Fat" grams={macros.fat} total={recipe.calories} kcalPerGram={9} />
-              </View>
+                  <View style={{ marginTop: 16, gap: 14 }}>
+                    <MacroBar
+                      label="Protein"
+                      grams={nutrition.protein}
+                      total={nutrition.calories}
+                      kcalPerGram={4}
+                    />
+                    <MacroBar
+                      label="Carbs"
+                      grams={nutrition.carbs}
+                      total={nutrition.calories}
+                      kcalPerGram={4}
+                    />
+                    <MacroBar label="Fat" grams={nutrition.fat} total={nutrition.calories} kcalPerGram={9} />
+                  </View>
 
-              <View
-                style={{
-                  marginTop: 18,
-                  backgroundColor: c.accentTint,
-                  borderRadius: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                }}>
-                <Text style={{ fontSize: 12.5, lineHeight: 18, color: c.text }}>
-                  Estimated from the ingredient list. Real values arrive when the nutrition
-                  database is wired up.
-                </Text>
-              </View>
+                  <View
+                    style={{
+                      marginTop: 18,
+                      backgroundColor: c.accentTint,
+                      borderRadius: 12,
+                      paddingVertical: 10,
+                      paddingHorizontal: 14,
+                    }}>
+                    <Text style={{ fontSize: 12.5, lineHeight: 18, color: c.text }}>
+                      Estimated from this recipe's actual ingredients — not a lookup, an AI estimate,
+                      so treat it as a guide rather than lab-verified.
+                    </Text>
+                  </View>
+                </>
+              ) : null}
             </View>
           ) : null}
         </View>

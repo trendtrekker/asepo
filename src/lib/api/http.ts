@@ -5,6 +5,7 @@ import type {
   ImageTask,
   ImportProgress,
   ImportSource,
+  NutritionEstimate,
   RecipeApi,
 } from '@/lib/api/types';
 
@@ -122,6 +123,17 @@ export function createHttpApi(baseUrl: string): RecipeApi {
           title: recipe.title,
           ingredients: recipe.ingredients,
           instructions: recipe.instructions,
+          servings: recipe.servings,
+        }),
+      });
+    },
+
+    async estimateNutrition(recipe: Recipe) {
+      return request<NutritionEstimate>(base, '/nutrition', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: recipe.title,
+          ingredients: recipe.ingredients,
           servings: recipe.servings,
         }),
       });

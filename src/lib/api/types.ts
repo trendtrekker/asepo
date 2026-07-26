@@ -68,6 +68,14 @@ export type HealthierRecipe = {
   summary: string;
 };
 
+/** Per-serving nutrition, estimated from the actual ingredient list. */
+export type NutritionEstimate = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
 export interface RecipeApi {
   /** The user's saved library. */
   listRecipes(): Promise<Recipe[]>;
@@ -86,6 +94,9 @@ export interface RecipeApi {
 
   /** Rewrites a recipe's ingredients and steps to be healthier. Pro-only. */
   healthifyRecipe(recipe: Recipe): Promise<HealthierRecipe>;
+
+  /** Estimates per-serving nutrition from the recipe's ingredients. Pro-only. */
+  estimateNutrition(recipe: Recipe): Promise<NutritionEstimate>;
 }
 
 /** Steps shown while extracting. The backend should emit indices into this list. */

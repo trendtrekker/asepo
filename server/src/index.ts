@@ -5,7 +5,7 @@ import express from 'express';
 
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
-import { healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
+import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
 import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
 
 /**
@@ -15,6 +15,7 @@ import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
  *   POST /images        -> { taskId, status }
  *   GET  /images/:id    -> { taskId, status, url?, error? }
  *   POST /healthify      -> { ingredients, instructions, summary }
+ *   POST /nutrition      -> { calories, protein, carbs, fat }
  */
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -278,6 +279,33 @@ app.post('/healthify', async (req, res) => {
     res.json(result);
   } catch (e) {
     const error = e instanceof LlmError ? e.message : 'Could not rework that recipe';
+    res.status(e instanceof LlmError ? 422 : 500).json({ error });
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Nutrition — Pro-only on the client, same reasoning as /healthify.
+ * ------------------------------------------------------------------ */
+
+app.post('/nutrition', async (req, res) => {
+  const { title, ingredients, servings } = req.body as {
+    title?: string;
+    ingredients?: { qty: string; unit: string; name: string }[];
+    servings?: number;
+  };
+
+  if (!title || !ingredients?.length || !servings) {
+    return res.status(400).json({ error: 'title, ingredients and servings are required' });
+  }
+  if (!isLlmConfigured()) {
+    return res.status(503).json({ error: 'Not configured — set LLM_API_KEY or KIE_API_KEY' });
+  }
+
+  try {
+    const result = await estimateNutrition({ title, ingredients, servings });
+    res.json(result);
+  } catch (e) {
+    const error = e instanceof LlmError ? e.message : 'Could not estimate nutrition for that recipe';
     res.status(e instanceof LlmError ? 422 : 500).json({ error });
   }
 });
