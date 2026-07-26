@@ -182,3 +182,28 @@ export function groupByAisle(items: GroceryItem[]) {
     items: items.filter((i) => i.aisle === aisle),
   })).filter((section) => section.items.length > 0);
 }
+
+/**
+ * Groups a list into meal sections, one per contributing recipe.
+ *
+ * An ingredient two recipes both need (onion, say) is a single merged line —
+ * it appears in *every* recipe's section so each meal's list is complete, but
+ * it's the same underlying item everywhere: checking it off in one section
+ * checks it off in all of them, since they share an id.
+ */
+export function groupByMeal(items: GroceryItem[]) {
+  const order: string[] = [];
+  const byMeal = new Map<string, GroceryItem[]>();
+
+  for (const item of items) {
+    for (const meal of item.sources) {
+      if (!byMeal.has(meal)) {
+        byMeal.set(meal, []);
+        order.push(meal);
+      }
+      byMeal.get(meal)!.push(item);
+    }
+  }
+
+  return order.map((meal) => ({ meal, items: byMeal.get(meal)! }));
+}

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
 import { EmptyIllustration, Screen } from '@/components/ui';
-import { groupByAisle } from '@/lib/grocery';
+import { groupByAisle, groupByMeal } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -21,10 +21,14 @@ export default function Grocery() {
   } = useStore();
 
   const [draft, setDraft] = useState('');
+  const [groupMode, setGroupMode] = useState<'meal' | 'aisle'>('meal');
 
   const unchecked = grocery.filter((i) => !i.checked);
   const checked = grocery.filter((i) => i.checked);
-  const sections = groupByAisle(unchecked);
+  const sections =
+    groupMode === 'meal'
+      ? groupByMeal(unchecked).map((s) => ({ label: s.meal, items: s.items }))
+      : groupByAisle(unchecked).map((s) => ({ label: s.aisle, items: s.items }));
 
   const submit = () => {
     const v = draft.trim();
@@ -58,6 +62,45 @@ export default function Grocery() {
         ) : null}
       </View>
 
+      {grocery.length > 0 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor: c.chipBg,
+            borderRadius: 10,
+            padding: 3,
+            marginHorizontal: 20,
+            marginTop: 14,
+            alignSelf: 'flex-start',
+          }}>
+          {[
+            { key: 'meal' as const, label: 'By meal' },
+            { key: 'aisle' as const, label: 'By aisle' },
+          ].map((opt) => (
+            <Pressable
+              key={opt.key}
+              onPress={() => setGroupMode(opt.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: groupMode === opt.key }}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                backgroundColor: groupMode === opt.key ? c.surface : 'transparent',
+              }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: '600',
+                  color: groupMode === opt.key ? c.text : c.textSec,
+                }}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 170 }}
         keyboardShouldPersistTaps="handled">
@@ -81,7 +124,7 @@ export default function Grocery() {
         ) : null}
 
         {sections.map((section) => (
-          <View key={section.aisle} style={{ marginBottom: 22 }}>
+          <View key={section.label} style={{ marginBottom: 22 }}>
             <Text
               style={{
                 fontSize: 12,
@@ -91,11 +134,11 @@ export default function Grocery() {
                 letterSpacing: 0.6,
                 marginBottom: 6,
               }}>
-              {section.aisle} · {section.items.length}
+              {section.label} · {section.items.length}
             </Text>
             {section.items.map((item) => (
               <Pressable
-                key={item.id}
+                key={`${section.label}-${item.id}`}
                 onPress={() => toggleGroceryItem(item.id)}
                 onLongPress={() => removeGroceryItem(item.id)}
                 accessibilityRole="checkbox"
@@ -120,7 +163,10 @@ export default function Grocery() {
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, color: c.text }}>{item.name}</Text>
-                  {item.sources.length ? (
+                  {/* In meal view the section header already says which recipe
+                      this is for — only worth repeating when it's shared with
+                      another meal too. Aisle view always needs it. */}
+                  {groupMode === 'aisle' || item.sources.length > 1 ? (
                     <Text style={{ fontSize: 11.5, color: c.textSec, marginTop: 2 }}>
                       {item.sources.join(' · ')}
                     </Text>
