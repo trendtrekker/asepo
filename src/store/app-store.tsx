@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -18,6 +19,8 @@ import {
 import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
 import { clearState, loadState, saveState } from '@/lib/storage';
+import { hasRemoteData, pullRemoteState, pushLocalState } from '@/lib/sync';
+import { useAuth } from '@/store/auth-store';
 
 /**
  * App state, persisted to device storage.
@@ -161,6 +164,7 @@ type Store = {
 const AppContext = createContext<Store | null>(null);
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [storedCookbooks, setStoredCookbooks] = useState<StoredCookbook[]>([]);
   const [recipesLoading, setRecipesLoading] = useState(true);
@@ -240,6 +244,84 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     recipes,
     storedCookbooks,
     favorites,
+    grocery,
+    plan,
+    onboarding,
+    importsUsed,
+    isPro,
+    profileName,
+  ]);
+
+  /**
+   * Which user id local state has already been reconciled against. Reset on
+   * sign-out so the next sign-in (same or different account) re-runs the
+   * merge below rather than treating a stale match as "already synced".
+   */
+  const syncedUserId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user) syncedUserId.current = null;
+  }, [user]);
+
+  // One-time merge on sign-in: pull the account's cloud data down if it has
+  // any, otherwise push whatever's on this device up (first-sign-in migration).
+  useEffect(() => {
+    if (!hydrated || !user || syncedUserId.current === user.id) return;
+    const userId = user.id;
+
+    (async () => {
+      const remoteHasData = await hasRemoteData(userId);
+      if (remoteHasData) {
+        const remote = await pullRemoteState(userId);
+        if (remote) {
+          setRecipes(remote.recipes);
+          setStoredCookbooks(remote.cookbooks);
+          setFavorites(Object.fromEntries(remote.recipes.map((r) => [r.id, r.favorite])));
+          setGrocery(remote.grocery);
+          setPlan(remote.plan);
+          setProfileName(remote.profile.profileName);
+          setOnboarding(remote.profile.onboarding);
+          setImportsUsed(remote.profile.importsUsed);
+          setPro(remote.profile.isPro);
+        } else {
+          // Pull failed — leave local state as-is rather than risk showing
+          // an empty account; the next debounced push effect will retry.
+          console.warn('asepo: failed to pull remote state for', userId);
+        }
+      } else {
+        await pushLocalState(userId, {
+          recipes,
+          cookbooks: storedCookbooks,
+          grocery,
+          plan,
+          profile: { profileName, onboarding, isPro, importsUsed },
+        });
+      }
+      syncedUserId.current = userId;
+    })();
+    // Only the sign-in transition should trigger this — not every local edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, user]);
+
+  // Ongoing sync: once merged, keep pushing local changes up. Debounced
+  // separately from the AsyncStorage save above so the two don't interfere.
+  useEffect(() => {
+    if (!hydrated || !user || syncedUserId.current !== user.id) return;
+    const userId = user.id;
+    const timer = setTimeout(() => {
+      pushLocalState(userId, {
+        recipes,
+        cookbooks: storedCookbooks,
+        grocery,
+        plan,
+        profile: { profileName, onboarding, isPro, importsUsed },
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [
+    hydrated,
+    user,
+    recipes,
+    storedCookbooks,
     grocery,
     plan,
     onboarding,
