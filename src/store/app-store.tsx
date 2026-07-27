@@ -69,6 +69,23 @@ const emptyOnboarding: Onboarding = {
   peopleCount: 2,
 };
 
+/**
+ * Backfills missing fields against emptyOnboarding rather than trusting the
+ * source wholesale — a saved blob from before a field existed, or a Supabase
+ * row fetched before a migration caught up, would otherwise leave e.g.
+ * `goals` undefined and crash any screen that indexes into it. Field-by-field
+ * with `??` on purpose — a plain object spread doesn't repair a field that's
+ * present but explicitly `undefined`, since the key still wins over the
+ * earlier spread.
+ */
+const sanitizeOnboarding = (o: Partial<Onboarding> | null | undefined): Onboarding => ({
+  goals: o?.goals ?? emptyOnboarding.goals,
+  diet: o?.diet ?? emptyOnboarding.diet,
+  allergies: o?.allergies ?? emptyOnboarding.allergies,
+  customAllergies: o?.customAllergies ?? emptyOnboarding.customAllergies,
+  peopleCount: o?.peopleCount ?? emptyOnboarding.peopleCount,
+});
+
 export const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
@@ -207,7 +224,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setFavorites(saved.favorites ?? {});
         setGrocery(saved.grocery ?? []);
         setPlan((saved.plan as PlanEntry[]) ?? []);
-        setOnboarding((saved.onboarding as Onboarding) ?? emptyOnboarding);
+        setOnboarding(sanitizeOnboarding(saved.onboarding as Partial<Onboarding>));
         setImportsUsed(saved.importsUsed ?? 0);
         setPro(saved.isPro ?? false);
         setProfileName(saved.profileName ?? '');
@@ -279,7 +296,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           setGrocery(remote.grocery);
           setPlan(remote.plan);
           setProfileName(remote.profile.profileName);
-          setOnboarding(remote.profile.onboarding);
+          setOnboarding(sanitizeOnboarding(remote.profile.onboarding));
           setImportsUsed(remote.profile.importsUsed);
           setPro(remote.profile.isPro);
         } else {
