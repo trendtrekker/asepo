@@ -201,17 +201,20 @@ const profileToRow = (userId: string, p: ProfileSnapshot) => ({
   updated_at: new Date().toISOString(),
 });
 
+// Defensive against a row fetched before a schema migration caught up (e.g.
+// `goals` didn't exist yet) — falling back to empty rather than undefined
+// keeps every screen that indexes into these safe regardless of DB state.
 const rowToProfile = (row: ProfileRow): ProfileSnapshot => ({
-  profileName: row.name,
+  profileName: row.name ?? '',
   onboarding: {
-    goals: row.goals,
-    diet: row.diet,
-    allergies: row.allergies,
-    customAllergies: row.custom_allergies,
-    peopleCount: row.people_count,
+    goals: row.goals ?? {},
+    diet: row.diet ?? 'None',
+    allergies: row.allergies ?? {},
+    customAllergies: row.custom_allergies ?? [],
+    peopleCount: row.people_count ?? 2,
   },
-  isPro: row.is_pro,
-  importsUsed: row.imports_used,
+  isPro: row.is_pro ?? false,
+  importsUsed: row.imports_used ?? 0,
 });
 
 /* ------------------------------------------------------------------ *
