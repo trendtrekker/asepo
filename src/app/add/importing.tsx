@@ -80,11 +80,16 @@ export default function Importing() {
     return () => {
       cancelled = true;
     };
-    // Deliberately excludes pendingImportSource beyond its initial value:
-    // this effect should run once per visit to the screen, not re-fire if the
-    // store object identity happens to change while we're mid-request.
+    // Deliberately runs once per mount only. recordImport/setPendingImport/router
+    // aren't reactive inputs here — they're action handles — and including them
+    // used to be actively harmful: recordImport() is called below, which bumps
+    // importsUsed, which gives the store's memoized value (and therefore this
+    // same recordImport reference) a new identity, which re-fired this effect
+    // and restarted the whole extraction from scratch. `done` never got reset
+    // by that restart, so the UI showed a stale "done" banner next to a step
+    // counter that had jumped back to 0.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordImport, setPendingImport, router]);
+  }, []);
 
   // Extraction failures get their own screen rather than a dead-end spinner.
   useEffect(() => {
