@@ -11,7 +11,7 @@ import { useStore } from '@/store/app-store';
 import { useAuth } from '@/store/auth-store';
 import { useTheme } from '@/theme/theme-context';
 
-type Sheet = 'name' | 'diet' | 'people' | 'allergies' | 'reset' | null;
+type Sheet = 'name' | 'diet' | 'people' | 'allergies' | 'reset' | 'delete-account' | null;
 
 /** Profile — appearance, preferences (editable in place), and account. */
 export default function Profile() {
@@ -29,11 +29,12 @@ export default function Profile() {
     setProfileName,
     resetEverything,
   } = useStore();
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [nameDraft, setNameDraft] = useState(profileName);
   const [allergyInput, setAllergyInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const allergies = [
     ...Object.keys(onboarding.allergies).filter((k) => onboarding.allergies[k]),
@@ -60,6 +61,21 @@ export default function Profile() {
   const logout = async () => {
     await signOut();
     toast.show('Signed out');
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    const { error } = await deleteAccount();
+    setDeleting(false);
+    if (error) {
+      toast.show(error);
+      return;
+    }
+    setSheet(null);
+    // The account is gone — a clean local slate matches the intent of
+    // "delete account" rather than leaving the device holding onto its data.
+    resetEverything();
+    toast.show('Account deleted');
   };
 
   return (
@@ -172,6 +188,11 @@ export default function Profile() {
           <Row label="Reset all data" onPress={() => setSheet('reset')} danger>
             <Text style={{ fontSize: 14, color: c.danger }}>›</Text>
           </Row>
+          {user ? (
+            <Row label="Delete account" onPress={() => setSheet('delete-account')} danger>
+              <Text style={{ fontSize: 14, color: c.danger }}>›</Text>
+            </Row>
+          ) : null}
         </Section>
       </ScrollView>
 
@@ -374,6 +395,57 @@ export default function Profile() {
                   opacity: pressed ? 0.8 : 1,
                 })}>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>Reset</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+        </Modal>
+      ) : null}
+
+      {sheet === 'delete-account' ? (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setSheet(null)}>
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: c.overlay,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          }}>
+          <View style={{ width: '100%', backgroundColor: c.surface, borderRadius: 20, padding: 22 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>Delete account?</Text>
+            <Text style={{ marginTop: 8, fontSize: 14, lineHeight: 20, color: c.textSec }}>
+              Your account, and every recipe, cookbook, grocery item, and plan entry tied to it, are
+              permanently deleted from our servers. This can’t be undone.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Button
+                title="Cancel"
+                variant="tinted"
+                style={{ flex: 1 }}
+                textStyle={{ fontSize: 15 }}
+                onPress={() => setSheet(null)}
+              />
+              <Pressable
+                onPress={confirmDeleteAccount}
+                disabled={deleting}
+                accessibilityRole="button"
+                style={({ pressed }) => ({
+                  flex: 1,
+                  height: 52,
+                  borderRadius: 26,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: c.danger,
+                  opacity: pressed || deleting ? 0.7 : 1,
+                })}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </Text>
               </Pressable>
             </View>
           </View>

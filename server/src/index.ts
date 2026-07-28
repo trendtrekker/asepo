@@ -7,6 +7,7 @@ import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, Ext
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
 import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
+import { supabaseAdmin } from './supabase-admin.js';
 
 /**
  * Asepo backend. Implements the contract the app expects in src/lib/api/http.ts:
@@ -16,6 +17,7 @@ import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
  *   GET  /images/:id    -> { taskId, status, url?, error? }
  *   POST /healthify      -> { ingredients, instructions, summary }
  *   POST /nutrition      -> { calories, protein, carbs, fat }
+ *   DELETE /account      -> 204, bearer token required
  */
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -308,6 +310,30 @@ app.post('/nutrition', async (req, res) => {
     const error = e instanceof LlmError ? e.message : 'Could not estimate nutrition for that recipe';
     res.status(e instanceof LlmError ? 422 : 500).json({ error });
   }
+});
+
+/* ------------------------------------------------------------------ *
+ * Account deletion — the one operation the app's anon key can never do
+ * itself (Supabase has no client-side "delete my own account" call; it's
+ * an admin-only API). Trust boundary: the caller must present the access
+ * token of the session they're asking to delete — verified server-side via
+ * the admin client below — so this can only ever delete the account making
+ * the request, never an arbitrary user id someone might pass in.
+ * ------------------------------------------------------------------ */
+
+app.delete('/account', async (req, res) => {
+  const authHeader = req.header('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Missing bearer token' });
+
+  const admin = supabaseAdmin();
+  const { data, error: authError } = await admin.auth.getUser(token);
+  if (authError || !data.user) return res.status(401).json({ error: 'Invalid or expired session' });
+
+  const { error } = await admin.auth.admin.deleteUser(data.user.id);
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.status(204).end();
 });
 
 app.listen(PORT, () => {

@@ -23,6 +23,9 @@ type AuthStore = {
   signInWithEmail: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signOut: () => Promise<void>;
+  /** Permanently deletes the account — recipes, cookbooks, grocery list, and
+   * plan all cascade-delete with it. Cannot be undone. */
+  deleteAccount: () => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthStore | null>(null);
@@ -107,6 +110,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const deleteAccount = async (): Promise<AuthResult> => {
+    const token = session?.access_token;
+    if (!token) return { error: 'Not signed in' };
+
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+    if (!baseUrl) return { error: 'Account deletion needs a server — not configured' };
+
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/account`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        return { error: body?.error ?? `Could not delete account (${response.status})` };
+      }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Could not reach the server' };
+    }
+
+    // The account (and its session) is gone server-side — drop the local
+    // copy too rather than leaving a session pointing at nothing.
+    await supabase.auth.signOut();
+    return { error: null };
+  };
+
   const value: AuthStore = {
     session,
     user: session?.user ?? null,
@@ -115,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithEmail,
     signInWithGoogle,
     signOut,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
