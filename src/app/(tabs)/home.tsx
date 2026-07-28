@@ -7,7 +7,8 @@ import { Refresh } from '@/components/icons';
 import { RecipeCarouselCard } from '@/components/recipe-card';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen } from '@/components/ui';
-import { MEAL_FILL, timeLabel, WEEK_DAYS, type Recipe } from '@/data/sample';
+import { MEAL_FILL, timeLabel, type Recipe } from '@/data/sample';
+import { addDays, fromIso, todayIso, weekdayShort } from '@/lib/dates';
 import { sortRecipes } from '@/lib/filter-recipes';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -155,14 +156,14 @@ export default function Home() {
         <View style={{ marginTop: 12, paddingHorizontal: 20 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>Your week</Text>
           <View style={{ flexDirection: 'row', gap: 7, marginTop: 12 }}>
-            {WEEK_DAYS.map((day, i) => {
+            {Array.from({ length: 7 }, (_, i) => addDays(todayIso(), i)).map((iso, i) => {
               const today = i === 0;
               return (
                 <Pressable
-                  key={day}
+                  key={iso}
                   onPress={() => router.push('/(tabs)/plan')}
                   accessibilityRole="button"
-                  accessibilityLabel={`${day} ${21 + i}`}
+                  accessibilityLabel={`${weekdayShort(iso)} ${fromIso(iso).getDate()}`}
                   style={{
                     flex: 1,
                     alignItems: 'center',
@@ -173,10 +174,10 @@ export default function Home() {
                   }}>
                   <Text
                     style={{ fontSize: 10.5, fontWeight: '600', color: today ? c.accent : c.text }}>
-                    {day}
+                    {weekdayShort(iso)}
                   </Text>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: today ? c.accent : c.text }}>
-                    {21 + i}
+                    {fromIso(iso).getDate()}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 2 }}>
                     {MEAL_FILL[i].map((filled, j) => (

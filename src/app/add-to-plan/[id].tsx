@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useToast } from '@/components/toast';
 import { Button, SheetHandle } from '@/components/ui';
-import { WEEK_DAYS } from '@/data/sample';
+import { addDays, formatShortDate, fromIso, todayIso, weekdayShort } from '@/lib/dates';
 import { MEAL_SLOTS, useStore, type MealSlot } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -19,15 +19,16 @@ export default function AddToPlan() {
   const { getRecipe, addToPlan } = useStore();
 
   const recipe = getRecipe(id);
-  const [day, setDay] = useState(0);
+  const today = todayIso();
+  const [date, setDate] = useState(today);
   const [slot, setSlot] = useState<MealSlot>('Dinner');
   const [servings, setServings] = useState(recipe?.servings ?? 2);
 
   const confirm = () => {
     if (!recipe) return;
-    addToPlan({ day, slot, recipeId: recipe.id, servings });
+    addToPlan({ date, slot, recipeId: recipe.id, servings });
     router.back();
-    toast.show(`Added to ${WEEK_DAYS[day]} ${slot.toLowerCase()}`);
+    toast.show(`Added to ${formatShortDate(date)} ${slot.toLowerCase()}`);
   };
 
   return (
@@ -59,12 +60,12 @@ export default function AddToPlan() {
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18 }}>
           <Label>Day</Label>
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-            {WEEK_DAYS.map((d, i) => {
-              const active = day === i;
+            {Array.from({ length: 7 }, (_, i) => addDays(today, i)).map((iso) => {
+              const active = date === iso;
               return (
                 <Pressable
-                  key={d}
-                  onPress={() => setDay(i)}
+                  key={iso}
+                  onPress={() => setDate(iso)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   style={{
@@ -76,7 +77,7 @@ export default function AddToPlan() {
                   }}>
                   <Text
                     style={{ fontSize: 11, fontWeight: '700', color: active ? '#fff' : c.text }}>
-                    {d}
+                    {iso === today ? 'Today' : weekdayShort(iso)}
                   </Text>
                   <Text
                     style={{
@@ -85,7 +86,7 @@ export default function AddToPlan() {
                       color: active ? '#fff' : c.textSec,
                       marginTop: 2,
                     }}>
-                    {21 + i}
+                    {fromIso(iso).getDate()}
                   </Text>
                 </Pressable>
               );

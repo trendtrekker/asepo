@@ -154,7 +154,7 @@ const rowToGrocery = (row: GroceryRow): GroceryItem => ({
 
 type PlanRow = {
   id: string;
-  day: number;
+  entry_date: string;
   slot: string;
   recipe_id: string;
   servings: number;
@@ -163,7 +163,7 @@ type PlanRow = {
 const planToRow = (userId: string, p: PlanEntry) => ({
   id: p.id,
   user_id: userId,
-  day: p.day,
+  entry_date: p.date,
   slot: p.slot,
   recipe_id: p.recipeId,
   servings: p.servings,
@@ -171,7 +171,7 @@ const planToRow = (userId: string, p: PlanEntry) => ({
 
 const rowToPlan = (row: PlanRow): PlanEntry => ({
   id: row.id,
-  day: row.day,
+  date: row.entry_date,
   slot: row.slot as PlanEntry['slot'],
   recipeId: row.recipe_id,
   servings: row.servings,

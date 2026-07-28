@@ -1,21 +1,27 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeImage } from '@/components/recipe-image';
 import { Screen } from '@/components/ui';
 import { timeLabel, WEEK_DAYS } from '@/data/sample';
+import { addDays, formatWeekRange, fromIso, startOfWeek, todayIso } from '@/lib/dates';
 import { MEAL_SLOTS, useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
-/** Weekly meal plan — fed by "Add to plan" on any recipe. */
+/** Meal plan — a navigable week view fed by "Add to plan" on any recipe. */
 export default function Plan() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { plan, getRecipe, removeFromPlan } = useStore();
 
-  const total = plan.length;
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(todayIso()));
+  const today = todayIso();
+
+  const weekEntries = plan.filter((e) => e.date >= weekStart && e.date <= addDays(weekStart, 6));
+  const total = weekEntries.length;
 
   return (
     <Screen style={{ paddingTop: insets.top + 12 }}>
@@ -23,14 +29,32 @@ export default function Plan() {
         <Text style={{ fontSize: 30, fontWeight: '700', color: c.text, letterSpacing: -0.4 }}>
           Plan
         </Text>
-        <Text style={{ fontSize: 13, color: c.textSec, marginTop: 2 }}>
-          {total ? `${total} meal${total === 1 ? '' : 's'} this week` : 'Jul 21 – 27'}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
+          <Pressable
+            onPress={() => setWeekStart((w) => addDays(w, -7))}
+            accessibilityRole="button"
+            accessibilityLabel="Previous week"
+            style={{ padding: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: c.textSec }}>‹</Text>
+          </Pressable>
+          <Text style={{ fontSize: 13, color: c.textSec, minWidth: 110, textAlign: 'center' }}>
+            {total ? `${total} meal${total === 1 ? '' : 's'} · ` : ''}
+            {formatWeekRange(weekStart)}
+          </Text>
+          <Pressable
+            onPress={() => setWeekStart((w) => addDays(w, 7))}
+            accessibilityRole="button"
+            accessibilityLabel="Next week"
+            style={{ padding: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: c.textSec }}>›</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 100 }}>
         {WEEK_DAYS.map((day, dayIndex) => {
-          const entries = plan.filter((e) => e.day === dayIndex);
+          const dayIso = addDays(weekStart, dayIndex);
+          const entries = plan.filter((e) => e.date === dayIso);
           return (
             <View key={day} style={{ marginBottom: 22 }}>
               <View
@@ -41,9 +65,9 @@ export default function Plan() {
                   marginBottom: 8,
                 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
-                  {day} <Text style={{ color: c.textSec, fontWeight: '500' }}>{21 + dayIndex}</Text>
+                  {day} <Text style={{ color: c.textSec, fontWeight: '500' }}>{fromIso(dayIso).getDate()}</Text>
                 </Text>
-                {dayIndex === 0 ? (
+                {dayIso === today ? (
                   <View
                     style={{
                       paddingVertical: 3,

@@ -91,7 +91,8 @@ export type MealSlot = (typeof MEAL_SLOTS)[number];
 
 export type PlanEntry = {
   id: string;
-  day: number;
+  /** ISO date ("YYYY-MM-DD") — see src/lib/dates.ts. */
+  date: string;
   slot: MealSlot;
   recipeId: string;
   servings: number;
@@ -450,7 +451,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       addToPlan: (entry) =>
         setPlan((entries) => [
           ...entries,
-          { ...entry, id: `${entry.recipeId}-${entry.day}-${entry.slot}-${Date.now()}` },
+          { ...entry, id: `${entry.recipeId}-${entry.date}-${entry.slot}-${Date.now()}` },
         ]),
       removeFromPlan: (id) => setPlan((entries) => entries.filter((e) => e.id !== id)),
 
