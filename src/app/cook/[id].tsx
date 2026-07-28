@@ -10,6 +10,7 @@ import { useKeepScreenAwake } from '@/lib/keep-awake';
 import { useStore } from '@/store/app-store';
 import { convertMeasure } from '@/lib/quantity';
 import { extractTimer, formatCountdown } from '@/lib/steps';
+import { cancelTimerNotification, scheduleTimerDone } from '@/lib/timer-notifications';
 import { darkColors } from '@/theme/tokens';
 
 /**
@@ -34,10 +35,19 @@ export default function CookMode() {
   const [rating, setRating] = useState(0);
   const [showIngredients, setShowIngredients] = useState(false);
 
+  const steps = recipe?.instructions ?? [];
+  const current = steps[index];
+  const timer = extractTimer(current ?? '');
+
   // Countdown for the current step's timer.
   const [remaining, setRemaining] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+  const remainingRef = useRef<number | null>(null);
+  const notificationId = useRef<string | null>(null);
+  useEffect(() => {
+    remainingRef.current = remaining;
+  }, [remaining]);
 
   const stopTimer = useCallback(() => {
     if (tick.current) clearInterval(tick.current);
@@ -47,12 +57,26 @@ export default function CookMode() {
 
   useEffect(() => {
     if (!running) return;
+
+    // Real, background-capable alert on top of the live countdown below —
+    // the countdown alone only works while this screen is on screen and the
+    // app is in the foreground.
+    if (remainingRef.current) {
+      scheduleTimerDone(recipe?.title ?? 'Recipe', timer?.label ?? 'Timer', remainingRef.current).then(
+        (id) => {
+          notificationId.current = id;
+        }
+      );
+    }
+
     tick.current = setInterval(() => {
       setRemaining((r) => {
         if (r === null) return r;
         if (r <= 1) {
           if (tick.current) clearInterval(tick.current);
           tick.current = null;
+          // Already fired (or about to, within a second) — nothing to cancel.
+          notificationId.current = null;
           setRunning(false);
           toast.show('Timer done');
           return 0;
@@ -63,7 +87,10 @@ export default function CookMode() {
     return () => {
       if (tick.current) clearInterval(tick.current);
       tick.current = null;
+      cancelTimerNotification(notificationId.current);
+      notificationId.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, toast]);
 
   // Reset the timer whenever the step changes.
@@ -88,9 +115,6 @@ export default function CookMode() {
     );
   }
 
-  const steps = recipe.instructions;
-  const current = steps[index];
-  const timer = extractTimer(current ?? '');
   const isLast = index === steps.length - 1;
 
   const next = () => (isLast ? setDone(true) : setIndex((i) => i + 1));
