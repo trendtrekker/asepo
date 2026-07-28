@@ -18,6 +18,7 @@ import {
 } from '@/data/sample';
 import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
+import { reconcilePlanNotifications } from '@/lib/plan-notifications';
 import { clearState, loadState, saveState } from '@/lib/storage';
 import { hasRemoteData, pullRemoteState, pushLocalState } from '@/lib/sync';
 import { useAuth } from '@/store/auth-store';
@@ -269,6 +270,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     isPro,
     profileName,
   ]);
+
+  // Debounced so adding several plan entries in a row doesn't re-scan and
+  // reschedule on every single one. Purely local/device — runs the same for
+  // guests and signed-in users, independent of the Supabase sync above.
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = setTimeout(() => {
+      reconcilePlanNotifications(plan, recipes);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [hydrated, plan, recipes]);
 
   /**
    * Which user id local state has already been reconciled against. Reset on
