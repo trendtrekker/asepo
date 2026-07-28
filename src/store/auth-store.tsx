@@ -45,8 +45,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUpWithEmail = async (email: string, password: string): Promise<AuthResult> => {
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
-    return { error: error?.message ?? null };
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+    if (error) return { error: error.message };
+
+    // Supabase deliberately doesn't error here for an email that's already
+    // registered — with email confirmation on (as this project has it), it
+    // hands back an obfuscated user object instead, so signUp can't be used
+    // to probe which emails have accounts. The one tell: identities comes
+    // back empty rather than holding the identity that would've just been
+    // created. Without this check the screen told a returning user to "check
+    // your email" for a confirmation that was never sent.
+    if (data.user && data.user.identities?.length === 0) {
+      return { error: 'An account with this email already exists — try signing in instead.' };
+    }
+    return { error: null };
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<AuthResult> => {
