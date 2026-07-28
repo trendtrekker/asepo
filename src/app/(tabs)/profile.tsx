@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Search } from '@/components/icons';
@@ -330,6 +330,7 @@ export default function Profile() {
       ) : null}
 
       {sheet === 'reset' ? (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setSheet(null)}>
         <View
           style={{
             position: 'absolute',
@@ -377,6 +378,7 @@ export default function Profile() {
             </View>
           </View>
         </View>
+        </Modal>
       ) : null}
     </Screen>
   );
@@ -395,6 +397,7 @@ function EditSheet({
   const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' }}>
       <Pressable
         accessibilityRole="button"
@@ -419,6 +422,7 @@ function EditSheet({
         {children}
       </View>
     </View>
+    </Modal>
   );
 }
 
