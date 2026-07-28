@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Text, View } from 'react-native';
+import { Animated, Easing, Image, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
@@ -97,112 +97,116 @@ export default function Importing() {
   }, [error, router]);
 
   return (
-    <Screen
-      style={{
-        alignItems: 'center',
-        paddingHorizontal: 28,
-        paddingTop: insets.top + 42,
-        paddingBottom: insets.bottom + 20,
-      }}>
-      <Animated.Image
-        source={require('../../../assets/images/importing.png')}
-        resizeMode="contain"
-        accessibilityLabel="Reading the recipe"
-        style={{
-          width: 168,
-          height: 168,
-          // Keep the pulse so it still reads as "working", but on the whole
-          // illustration rather than a bare square inside a frame.
-          opacity: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.7, 1] }),
-          transform: [{ scale: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.97, 1.02] }) }],
+    <Screen>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          alignItems: 'center',
+          paddingHorizontal: 28,
+          paddingTop: insets.top + 42,
+          paddingBottom: insets.bottom + 20,
         }}
-      />
+        showsVerticalScrollIndicator={false}>
+        <Animated.Image
+          source={require('../../../assets/images/importing.png')}
+          resizeMode="contain"
+          accessibilityLabel="Reading the recipe"
+          style={{
+            width: 168,
+            height: 168,
+            // Keep the pulse so it still reads as "working", but on the whole
+            // illustration rather than a bare square inside a frame.
+            opacity: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.7, 1] }),
+            transform: [{ scale: pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.97, 1.02] }) }],
+          }}
+        />
 
-      <Text
-        style={{ marginTop: 26, fontSize: 21, fontWeight: '700', color: c.text, textAlign: 'center' }}>
-        Reading your recipe…
-      </Text>
+        <Text
+          style={{ marginTop: 26, fontSize: 21, fontWeight: '700', color: c.text, textAlign: 'center' }}>
+          Reading your recipe…
+        </Text>
 
-      <View style={{ gap: 14, marginTop: 28, width: '100%' }}>
-        {labels.map((label, i) => {
-          const complete = i < step || (i === step && done);
-          const active = i === step && !done;
-          return (
-            <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View
+        <View style={{ gap: 14, marginTop: 28, width: '100%' }}>
+          {labels.map((label, i) => {
+            const complete = i < step || (i === step && done);
+            const active = i === step && !done;
+            return (
+              <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: complete ? c.success : active ? c.accent : c.chipBg,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  {complete ? <Check color="#fff" /> : null}
+                </View>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: '500',
+                    color: complete || active ? c.text : c.textSec,
+                  }}>
+                  {label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {done ? (
+          <View
+            style={{
+              marginTop: 24,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              backgroundColor: c.chipBg,
+              borderRadius: 14,
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              width: '100%',
+            }}>
+            {previewImageUrl ? (
+              <Image
+                source={{ uri: previewImageUrl }}
+                accessibilityLabel="Recipe preview"
+                style={{ width: 44, height: 44, borderRadius: 10 }}
+              />
+            ) : (
+              <Animated.View
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  backgroundColor: complete ? c.success : active ? c.accent : c.chipBg,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: c.success,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  opacity: readyPop,
+                  transform: [{ scale: readyPop }],
                 }}>
-                {complete ? <Check color="#fff" /> : null}
-              </View>
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: '500',
-                  color: complete || active ? c.text : c.textSec,
-                }}>
-                {label}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+                <Check color="#fff" />
+              </Animated.View>
+            )}
+            <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
+              {previewImageUrl ? 'Source preview ready' : 'Recipe ready — adding a photo next'}
+            </Text>
+          </View>
+        ) : null}
 
-      {done ? (
-        <View
-          style={{
-            marginTop: 24,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            backgroundColor: c.chipBg,
-            borderRadius: 14,
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            width: '100%',
-          }}>
-          {previewImageUrl ? (
-            <Image
-              source={{ uri: previewImageUrl }}
-              accessibilityLabel="Recipe preview"
-              style={{ width: 44, height: 44, borderRadius: 10 }}
-            />
-          ) : (
-            <Animated.View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: c.success,
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: readyPop,
-                transform: [{ scale: readyPop }],
-              }}>
-              <Check color="#fff" />
-            </Animated.View>
-          )}
-          <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
-            {previewImageUrl ? 'Source preview ready' : 'Recipe ready — adding a photo next'}
-          </Text>
-        </View>
-      ) : null}
+        <View style={{ flex: 1 }} />
 
-      <View style={{ flex: 1 }} />
-
-      <Button title="Cancel" variant="plain" onPress={() => router.back()} />
-      {done ? (
-        <Button
-          title="See recipe"
-          onPress={() => router.replace('/add/review')}
-          style={{ marginTop: 12, width: '100%' }}
-        />
-      ) : null}
+        <Button title="Cancel" variant="plain" onPress={() => router.back()} />
+        {done ? (
+          <Button
+            title="See recipe"
+            onPress={() => router.replace('/add/review')}
+            style={{ marginTop: 12, width: '100%' }}
+          />
+        ) : null}
+      </ScrollView>
     </Screen>
   );
 }
