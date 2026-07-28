@@ -69,20 +69,13 @@ export default function CookMode() {
       );
     }
 
+    // Only decrements state here — completion side effects (stopping,
+    // toasting, clearing the notification ref) live in their own effect
+    // below. Calling another component's setState (toast.show) from inside
+    // this updater function used to trip React's "cannot update a component
+    // while rendering a different component" warning.
     tick.current = setInterval(() => {
-      setRemaining((r) => {
-        if (r === null) return r;
-        if (r <= 1) {
-          if (tick.current) clearInterval(tick.current);
-          tick.current = null;
-          // Already fired (or about to, within a second) — nothing to cancel.
-          notificationId.current = null;
-          setRunning(false);
-          toast.show('Timer done');
-          return 0;
-        }
-        return r - 1;
-      });
+      setRemaining((r) => (r === null ? r : Math.max(0, r - 1)));
     }, 1000);
     return () => {
       if (tick.current) clearInterval(tick.current);
@@ -91,7 +84,16 @@ export default function CookMode() {
       notificationId.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, toast]);
+  }, [running]);
+
+  // Fires once when a running countdown actually reaches zero.
+  useEffect(() => {
+    if (!running || remaining !== 0) return;
+    // Already fired (or about to, within a second) — nothing to cancel.
+    notificationId.current = null;
+    stopTimer();
+    toast.show('Timer done');
+  }, [running, remaining, stopTimer, toast]);
 
   // Reset the timer whenever the step changes.
   useEffect(() => {
