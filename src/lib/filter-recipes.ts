@@ -1,4 +1,4 @@
-import { RECIPE_SAMPLES, type Recipe } from '@/data/sample';
+import { type Recipe } from '@/data/sample';
 import { MAX_COOK_TIME, type Filters } from '@/store/app-store';
 
 const anySelected = (map: Record<string, boolean>) => Object.values(map).some(Boolean);
@@ -67,10 +67,10 @@ export function sortRecipes(recipes: Recipe[], sort: string): Recipe[] {
 }
 
 /** Full-text-ish search across titles, ingredients, tags and cuisine. */
-export function searchRecipes(query: string): Recipe[] {
+export function searchRecipes(recipes: Recipe[], query: string): Recipe[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  return RECIPE_SAMPLES.filter(
+  return recipes.filter(
     (r) =>
       r.title.toLowerCase().includes(q) ||
       r.cuisine.toLowerCase().includes(q) ||

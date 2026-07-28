@@ -17,7 +17,7 @@ import { useToast } from '@/components/toast';
 /** Screen 14 — Home. */
 export default function Home() {
   const toast = useToast();
-  const { recipes: allRecipes, recipesLoading } = useStore();
+  const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe } = useStore();
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -45,8 +45,10 @@ export default function Home() {
 
   const recentlySaved = sortRecipes(allRecipes, 'Recently added').slice(0, 6);
   const cookItAgain = sortRecipes(allRecipes, 'Most cooked').slice(0, 6);
-  // Undefined until the library loads, or if every recipe has been deleted.
-  const tonight: Recipe | undefined = allRecipes[0];
+  // Whatever's actually planned for today's Dinner slot — not just the most
+  // recently added recipe, which has nothing to do with tonight.
+  const todaysDinner = plan.find((e) => e.date === todayIso() && e.slot === 'Dinner');
+  const tonight: Recipe | undefined = todaysDinner ? getRecipe(todaysDinner.recipeId) : undefined;
 
 
   return (
@@ -137,15 +139,29 @@ export default function Home() {
             style={{
               marginHorizontal: 20,
               marginTop: 16,
-              height: 150,
+              minHeight: 150,
               borderRadius: 20,
               backgroundColor: c.chipBg,
               alignItems: 'center',
               justifyContent: 'center',
+              gap: 12,
+              paddingVertical: 20,
             }}>
             <Text style={{ fontSize: 14, color: c.textSec }}>
-              {recipesLoading ? 'Loading your recipes…' : 'No recipes yet'}
+              {recipesLoading
+                ? 'Loading your recipes…'
+                : allRecipes.length === 0
+                  ? 'No recipes yet'
+                  : 'Nothing planned for dinner tonight'}
             </Text>
+            {!recipesLoading && allRecipes.length > 0 ? (
+              <Button
+                title="Plan dinner"
+                variant="tinted"
+                height={40}
+                onPress={() => router.push('/(tabs)/plan')}
+              />
+            ) : null}
           </View>
         )}
 
@@ -201,8 +217,8 @@ export default function Home() {
         {/* Stats */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 22, paddingHorizontal: 20 }}>
           <Stat value={String(allRecipes.length)} label="Recipes saved" />
-          <Stat value="14" label="Meals planned" />
-          <Stat value="23" label="Grocery items" />
+          <Stat value={String(plan.length)} label="Meals planned" />
+          <Stat value={String(grocery.length)} label="Grocery items" />
         </View>
       </ScrollView>
     </Screen>

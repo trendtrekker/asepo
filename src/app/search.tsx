@@ -23,10 +23,10 @@ export default function Search() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const { cookbooks: allCookbooks } = useStore();
+  const { recipes: allRecipes, cookbooks: allCookbooks } = useStore();
 
   const q = query.trim().toLowerCase();
-  const recipes = searchRecipes(query);
+  const recipes = searchRecipes(allRecipes, query);
   const ingredients = q ? ALL_INGREDIENTS.filter((i) => i.toLowerCase().includes(q)).slice(0, 8) : [];
   const cookbooks = q ? allCookbooks.filter((cb) => cb.name.toLowerCase().includes(q)) : [];
   const tags = q ? ALL_TAGS.filter((t) => t.toLowerCase().includes(q)) : [];
@@ -113,8 +113,10 @@ export default function Search() {
                 <SectionLabel>Recipes</SectionLabel>
                 <View style={{ marginTop: 8 }}>
                   {recipes.map((r) => (
-                    <View
+                    <Pressable
                       key={r.id}
+                      onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })}
+                      accessibilityRole="button"
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -136,7 +138,7 @@ export default function Search() {
                           {metaLine(r)}
                         </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   ))}
                 </View>
               </View>
@@ -167,8 +169,10 @@ export default function Search() {
                 <SectionLabel>Cookbooks</SectionLabel>
                 <View style={{ marginTop: 8 }}>
                   {cookbooks.map((cb) => (
-                    <View
+                    <Pressable
                       key={cb.id}
+                      onPress={() => router.push(`/cookbooks/${cb.id}`)}
+                      accessibilityRole="button"
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -184,7 +188,7 @@ export default function Search() {
                         {cb.name}
                       </Text>
                       <Text style={{ fontSize: 12.5, color: c.textSec }}>{cb.count} recipes</Text>
-                    </View>
+                    </Pressable>
                   ))}
                 </View>
               </View>

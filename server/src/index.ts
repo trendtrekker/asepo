@@ -15,8 +15,8 @@ import { supabaseAdmin } from './supabase-admin.js';
  *   GET  /import/:id    -> { status, step, label, recipe?, error? }
  *   POST /images        -> { taskId, status }
  *   GET  /images/:id    -> { taskId, status, url?, error? }
- *   POST /healthify      -> { ingredients, instructions, summary }
- *   POST /nutrition      -> { calories, protein, carbs, fat }
+ *   POST /healthify      -> { ingredients, instructions, summary } — Pro only, bearer token required
+ *   POST /nutrition      -> { calories, protein, carbs, fat } — Pro only, bearer token required
  *   DELETE /account      -> 204, bearer token required
  */
 
@@ -257,11 +257,44 @@ app.get('/images/:id', async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ *
- * Healthify — Pro-only, so the client gates the button; this endpoint
- * doesn't re-check entitlement itself (no account/auth system yet).
+ * Pro entitlement — used by /healthify and /nutrition below. The client
+ * already gates these buttons on isPro, but that flag is trivially
+ * self-settable (it's just a synced local preference, same as diet or
+ * allergies — there's no real payment system behind it yet). This can't
+ * verify a genuine purchase either, since none exists, but it closes the
+ * bigger hole: without it, *anyone*, including a fully anonymous caller
+ * with no account at all, could hit these LLM-backed endpoints for free.
+ * Requiring a real session and checking profiles.is_pro at least means it
+ * costs an account, not zero.
+ * ------------------------------------------------------------------ */
+
+async function requirePro(req: express.Request): Promise<{ status: number; error: string } | null> {
+  const authHeader = req.header('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return { status: 401, error: 'Sign in required' };
+
+  const admin = supabaseAdmin();
+  const { data: userData, error: authError } = await admin.auth.getUser(token);
+  if (authError || !userData.user) return { status: 401, error: 'Invalid or expired session' };
+
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .select('is_pro')
+    .eq('id', userData.user.id)
+    .single<{ is_pro: boolean }>();
+  if (profileError || !profile?.is_pro) return { status: 403, error: 'Asepo Pro required' };
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Healthify — Pro-only.
  * ------------------------------------------------------------------ */
 
 app.post('/healthify', async (req, res) => {
+  const entitlementError = await requirePro(req);
+  if (entitlementError) return res.status(entitlementError.status).json({ error: entitlementError.error });
+
   const { title, ingredients, instructions, servings } = req.body as {
     title?: string;
     ingredients?: { qty: string; unit: string; name: string }[];
@@ -286,10 +319,13 @@ app.post('/healthify', async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ *
- * Nutrition — Pro-only on the client, same reasoning as /healthify.
+ * Nutrition — Pro-only, same reasoning as /healthify above.
  * ------------------------------------------------------------------ */
 
 app.post('/nutrition', async (req, res) => {
+  const entitlementError = await requirePro(req);
+  if (entitlementError) return res.status(entitlementError.status).json({ error: entitlementError.error });
+
   const { title, ingredients, servings } = req.body as {
     title?: string;
     ingredients?: { qty: string; unit: string; name: string }[];

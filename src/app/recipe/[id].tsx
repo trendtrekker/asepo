@@ -14,6 +14,7 @@ import { api, type HealthierRecipe, type NutritionEstimate } from '@/lib/api';
 import { convertMeasure } from '@/lib/quantity';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
+import { useAuth } from '@/store/auth-store';
 import { useColors } from '@/theme/theme-context';
 
 type Tab = 'Ingredients' | 'Steps' | 'Nutrition';
@@ -29,6 +30,7 @@ export default function RecipeDetail() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isFavorite, toggleFavorite, getRecipe, deleteRecipe, addRecipeToGrocery, isPro } = useStore();
+  const { session } = useAuth();
 
   const recipe = getRecipe(id);
   const [tab, setTab] = useState<Tab>('Ingredients');
@@ -78,7 +80,7 @@ export default function RecipeDetail() {
     if (healthifying) return;
     setHealthifying(true);
     api
-      .healthifyRecipe(recipe)
+      .healthifyRecipe(recipe, session?.access_token ?? null)
       .then((result) => {
         setHealthier(result);
         setShowingHealthier(true);
@@ -100,7 +102,7 @@ export default function RecipeDetail() {
       setNutritionLoading(true);
       setNutritionError(null);
       api
-        .estimateNutrition(recipe)
+        .estimateNutrition(recipe, session?.access_token ?? null)
         .then(setNutrition)
         .catch((e: unknown) =>
           setNutritionError(e instanceof Error ? e.message : 'Could not estimate nutrition')

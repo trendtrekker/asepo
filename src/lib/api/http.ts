@@ -116,9 +116,10 @@ export function createHttpApi(baseUrl: string): RecipeApi {
       return request<ImageTask>(base, `/images/${encodeURIComponent(taskId)}`);
     },
 
-    async healthifyRecipe(recipe: Recipe) {
+    async healthifyRecipe(recipe: Recipe, accessToken: string | null) {
       return request<HealthierRecipe>(base, '/healthify', {
         method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: JSON.stringify({
           title: recipe.title,
           ingredients: recipe.ingredients,
@@ -128,9 +129,10 @@ export function createHttpApi(baseUrl: string): RecipeApi {
       });
     },
 
-    async estimateNutrition(recipe: Recipe) {
+    async estimateNutrition(recipe: Recipe, accessToken: string | null) {
       return request<NutritionEstimate>(base, '/nutrition', {
         method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: JSON.stringify({
           title: recipe.title,
           ingredients: recipe.ingredients,

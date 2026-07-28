@@ -92,11 +92,15 @@ export interface RecipeApi {
   /** Polls a previously started image task. */
   getImageTask(taskId: string): Promise<ImageTask>;
 
-  /** Rewrites a recipe's ingredients and steps to be healthier. Pro-only. */
-  healthifyRecipe(recipe: Recipe): Promise<HealthierRecipe>;
+  /**
+   * Rewrites a recipe's ingredients and steps to be healthier. Pro-only —
+   * the server independently verifies this against the caller's own
+   * session, so accessToken is required, not just a client-side gate.
+   */
+  healthifyRecipe(recipe: Recipe, accessToken: string | null): Promise<HealthierRecipe>;
 
-  /** Estimates per-serving nutrition from the recipe's ingredients. Pro-only. */
-  estimateNutrition(recipe: Recipe): Promise<NutritionEstimate>;
+  /** Estimates per-serving nutrition from the recipe's ingredients. Pro-only, same as above. */
+  estimateNutrition(recipe: Recipe, accessToken: string | null): Promise<NutritionEstimate>;
 }
 
 /** Steps shown while extracting. The backend should emit indices into this list. */
