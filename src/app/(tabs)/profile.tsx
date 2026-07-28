@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast';
 import { Button, Chip, Screen, SheetHandle, Toggle } from '@/components/ui';
 import { ALLERGY_OPTIONS, DIET_OPTIONS } from '@/data/sample';
 import { useStore } from '@/store/app-store';
+import { useAuth } from '@/store/auth-store';
 import { useTheme } from '@/theme/theme-context';
 
 type Sheet = 'name' | 'diet' | 'people' | 'allergies' | 'reset' | null;
@@ -28,6 +29,7 @@ export default function Profile() {
     setProfileName,
     resetEverything,
   } = useStore();
+  const { user, signOut } = useAuth();
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [nameDraft, setNameDraft] = useState(profileName);
@@ -53,6 +55,11 @@ export default function Profile() {
   const saveName = () => {
     setProfileName(nameDraft.trim());
     setSheet(null);
+  };
+
+  const logout = async () => {
+    await signOut();
+    toast.show('Signed out');
   };
 
   return (
@@ -151,6 +158,17 @@ export default function Profile() {
               <Text style={{ fontSize: 14, color: c.textSec }}>›</Text>
             </Row>
           ) : null}
+          {user ? (
+            <Row label="Sign out" onPress={logout}>
+              <Text style={{ fontSize: 14, color: c.textSec, maxWidth: 180 }} numberOfLines={1}>
+                {user.email}
+              </Text>
+            </Row>
+          ) : (
+            <Row label="Sign in" onPress={() => router.push('/sign-in')}>
+              <Text style={{ fontSize: 14, color: c.textSec }}>›</Text>
+            </Row>
+          )}
           <Row label="Reset all data" onPress={() => setSheet('reset')} danger>
             <Text style={{ fontSize: 14, color: c.danger }}>›</Text>
           </Row>
