@@ -14,6 +14,7 @@ import {
   SUGGESTED_SEARCHES,
 } from '@/data/sample';
 import { searchRecipes } from '@/lib/filter-recipes';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -57,7 +58,7 @@ export default function Search() {
             style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 10 }}
           />
         </View>
-        <Pressable onPress={() => router.back()} accessibilityRole="button">
+        <Pressable onPress={() => safeBack(router, '/recipes')} accessibilityRole="button">
           <Text style={{ fontSize: 15, fontWeight: '500', color: c.accent }}>Cancel</Text>
         </Pressable>
       </View>
