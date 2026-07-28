@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ export default function ImportReview() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { pendingImport, addRecipe, setPendingImport, cookbooks } = useStore();
+  const { pendingImport, addRecipe, updateRecipe, setPendingImport, cookbooks } = useStore();
 
   const [title, setTitle] = useState(pendingImport?.title ?? '');
   const [minutes, setMinutes] = useState(
@@ -45,9 +45,18 @@ export default function ImportReview() {
   // the gradient placeholder looks identical whether one is on the way or not.
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | undefined>(undefined);
   const [generatingImage, setGeneratingImage] = useState(false);
+  /**
+   * Set the moment the user hits Save. Generation used to die with the screen
+   * — if Save happened before kie.ai's 30-50s finished, the in-flight job was
+   * abandoned and the recipe was stuck with the gradient placeholder forever.
+   * Now the poll loop keeps running against this id after the screen (and its
+   * local state) is gone, patching the photo into the *saved* recipe via
+   * updateRecipe once it's ready — Save no longer has to wait on it at all.
+   */
+  const savedRecipeId = useRef<string | null>(null);
   useEffect(() => {
     if (pendingImport?.imageUrl || !pendingImport) return;
-    let cancelled = false;
+    let onScreen = true;
     setGeneratingImage(true);
 
     const run = async () => {
@@ -59,14 +68,21 @@ export default function ImportReview() {
           ingredients: pendingImport.ingredients,
         } as Recipe)
         .catch(() => null);
-      if (!task || task.status === 'failed' || cancelled) {
-        if (!cancelled) setGeneratingImage(false);
+      if (!task || task.status === 'failed' || (!onScreen && !savedRecipeId.current)) {
+        if (onScreen) setGeneratingImage(false);
         return;
       }
 
       const deadline = Date.now() + 120_000;
       let current = task;
-      while (!cancelled && current.status === 'pending' && Date.now() < deadline) {
+      // Keeps polling after the screen unmounts as long as the recipe got
+      // saved — only a genuinely abandoned import (backed out, never saved)
+      // should stop early rather than run out the full timeout for nothing.
+      while (
+        (onScreen || savedRecipeId.current) &&
+        current.status === 'pending' &&
+        Date.now() < deadline
+      ) {
         await new Promise((r) => setTimeout(r, 2000));
         try {
           current = await api.getImageTask(current.taskId);
@@ -76,17 +92,18 @@ export default function ImportReview() {
           // resolve. Anything else (a dropped request) is worth retrying.
           if (e instanceof ApiError && e.status === 404) break;
         }
-        if (current.status === 'ready' && current.url && !cancelled) {
-          setGeneratedImageUrl(current.url);
+        if (current.status === 'ready' && current.url) {
+          if (onScreen) setGeneratedImageUrl(current.url);
+          if (savedRecipeId.current) updateRecipe(savedRecipeId.current, { photoUrl: current.url });
         }
         if (current.status === 'failed') break;
       }
-      if (!cancelled) setGeneratingImage(false);
+      if (onScreen) setGeneratingImage(false);
     };
 
     void run();
     return () => {
-      cancelled = true;
+      onScreen = false;
     };
     // Runs once against the source recipe as extracted — not on every
     // keystroke as the user edits the title/ingredients below.
@@ -149,6 +166,10 @@ export default function ImportReview() {
       instructions: instructions.map((s) => s.text.trim()).filter(Boolean),
       photoUrl: pendingImport?.imageUrl ?? generatedImageUrl,
     };
+
+    // Lets a still-running image generation find this recipe once it
+    // finishes, even though the screen showing it is about to go away.
+    savedRecipeId.current = recipe.id;
 
     addRecipe(recipe);
     setPendingImport(null);
