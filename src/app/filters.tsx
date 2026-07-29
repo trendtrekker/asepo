@@ -12,6 +12,7 @@ import {
   MEAL_TYPE_OPTIONS,
 } from '@/data/sample';
 import { applyFilters } from '@/lib/filter-recipes';
+import { safeBack } from '@/lib/navigation';
 import { MAX_COOK_TIME, useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -54,7 +55,7 @@ export default function Filters() {
           <Text style={{ fontSize: 14, fontWeight: '500', color: c.textSec }}>Reset</Text>
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>Filters</Text>
-        <Pressable onPress={() => router.back()} accessibilityRole="button">
+        <Pressable onPress={() => safeBack(router, '/(tabs)/recipes')} accessibilityRole="button">
           <Text style={{ fontSize: 14, fontWeight: '600', color: c.accent }}>Done</Text>
         </Pressable>
       </View>
@@ -233,7 +234,7 @@ export default function Filters() {
       </ScrollView>
 
       <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 20 }}>
-        <Button title={`Show ${matchCount} recipes`} onPress={() => router.back()} />
+        <Button title={`Show ${matchCount} recipes`} onPress={() => safeBack(router, '/(tabs)/recipes')} />
       </View>
     </Screen>
   );

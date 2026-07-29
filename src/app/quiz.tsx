@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircle, ChevronLeft, Search } from '@/components/icons';
 import { Button, Chip, Screen } from '@/components/ui';
 import { ALLERGY_OPTIONS, DIET_OPTIONS, Q1_OPTIONS } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -22,7 +23,7 @@ export default function Quiz() {
 
   const back = () => {
     if (step > 1) setStep(step - 1);
-    else router.back();
+    else safeBack(router, '/welcome');
   };
   const next = () => {
     if (step < TOTAL_STEPS) setStep(step + 1);

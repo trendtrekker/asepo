@@ -7,6 +7,7 @@ import { Check } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Field, Screen } from '@/components/ui';
 import { COOKBOOK_COLORS, COOKBOOK_EMOJIS } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -41,7 +42,7 @@ export default function NewCookbook() {
       emoji,
       recipeIds: Object.keys(selected).filter((id) => selected[id]),
     });
-    router.back();
+    safeBack(router, '/cookbooks');
     toast.show(`Created “${trimmed}”`);
   };
 
@@ -55,7 +56,7 @@ export default function NewCookbook() {
           paddingHorizontal: 20,
           paddingTop: insets.top + 12,
         }}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button">
+        <Pressable onPress={() => safeBack(router, '/cookbooks')} accessibilityRole="button">
           <Text style={{ fontSize: 15, fontWeight: '500', color: c.textSec }}>Cancel</Text>
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>New Cookbook</Text>

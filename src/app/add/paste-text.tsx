@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useToast } from '@/components/toast';
 import { Button, Screen } from '@/components/ui';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -46,7 +47,7 @@ export default function PasteText() {
           paddingHorizontal: 20,
           paddingTop: insets.top + 12,
         }}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button">
+        <Pressable onPress={() => safeBack(router, '/add')} accessibilityRole="button">
           <Text style={{ fontSize: 15, fontWeight: '500', color: c.textSec }}>Cancel</Text>
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>Paste text</Text>

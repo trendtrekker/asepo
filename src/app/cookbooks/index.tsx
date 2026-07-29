@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CookbookCollage } from '@/components/cookbook-collage';
 import { ChevronLeft } from '@/components/icons';
 import { Screen } from '@/components/ui';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -28,7 +29,7 @@ export default function Cookbooks() {
             paddingTop: 10,
           }}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => safeBack(router, '/(tabs)/recipes')}
             accessibilityRole="button"
             accessibilityLabel="Back"
             style={{

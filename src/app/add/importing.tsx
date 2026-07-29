@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check } from '@/components/icons';
 import { Button, Screen } from '@/components/ui';
 import { api, IMPORT_PIPELINE } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -198,7 +199,7 @@ export default function Importing() {
 
         <View style={{ flex: 1 }} />
 
-        <Button title="Cancel" variant="plain" onPress={() => router.back()} />
+        <Button title="Cancel" variant="plain" onPress={() => safeBack(router, '/add')} />
         {done ? (
           <Button
             title="See recipe"

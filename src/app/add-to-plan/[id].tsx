@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '@/components/toast';
 import { Button, SheetHandle } from '@/components/ui';
 import { addDays, formatShortDate, fromIso, todayIso, weekdayShort } from '@/lib/dates';
+import { safeBack } from '@/lib/navigation';
 import { MEAL_SLOTS, useStore, type MealSlot } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -27,7 +28,7 @@ export default function AddToPlan() {
   const confirm = () => {
     if (!recipe) return;
     addToPlan({ date, slot, recipeId: recipe.id, servings });
-    router.back();
+    safeBack(router, '/(tabs)/plan');
     toast.show(`Added to ${formatShortDate(date)} ${slot.toLowerCase()}`);
   };
 
@@ -36,7 +37,7 @@ export default function AddToPlan() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close"
-        onPress={() => router.back()}
+        onPress={() => safeBack(router, '/(tabs)/plan')}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.overlay }}
       />
 

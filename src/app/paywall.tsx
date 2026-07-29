@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircleTinted, Close } from '@/components/icons';
 import { Button, Screen, ScrimButton } from '@/components/ui';
 import { BENEFITS, PLANS } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -165,7 +166,7 @@ export default function Paywall() {
       </ScrollView>
 
       <ScrimButton
-        onPress={() => router.back()}
+        onPress={() => safeBack(router, '/(tabs)/home')}
         style={{ position: 'absolute', top: insets.top + 8, left: 16 }}>
         <Close color="#fff" />
       </ScrimButton>

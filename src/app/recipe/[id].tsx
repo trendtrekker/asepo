@@ -11,6 +11,7 @@ import { useToast } from '@/components/toast';
 import { Button, Screen, ScrimButton } from '@/components/ui';
 import { calLabel, timeLabel } from '@/data/sample';
 import { api, type HealthierRecipe, type NutritionEstimate } from '@/lib/api';
+import { safeBack } from '@/lib/navigation';
 import { convertMeasure } from '@/lib/quantity';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
@@ -51,13 +52,13 @@ export default function RecipeDetail() {
     return (
       <Screen style={{ alignItems: 'center', justifyContent: 'center', padding: 30 }}>
         <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>Recipe not found</Text>
-        <Button title="Go back" variant="plain" onPress={() => router.back()} />
+        <Button title="Go back" variant="plain" onPress={() => safeBack(router, '/(tabs)/recipes')} />
       </Screen>
     );
   }
 
   // Deep links have no history to pop — send those to the library instead.
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace(`/recipes`));
+  const goBack = () => safeBack(router, '/recipes');
 
   // A toggle, not a one-shot action: the first tap fetches and switches the
   // ingredient list over, a second tap flips straight back — nothing is saved

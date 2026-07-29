@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircleTinted } from '@/components/icons';
 import { Button, SheetHandle } from '@/components/ui';
 import { LIMIT_BENEFITS } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -20,7 +21,7 @@ export default function ImportLimit() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close"
-        onPress={() => router.back()}
+        onPress={() => safeBack(router, '/(tabs)/recipes')}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.overlay }}
       />
 
@@ -60,7 +61,12 @@ export default function ImportLimit() {
           onPress={() => router.replace('/paywall')}
           style={{ marginTop: 20 }}
         />
-        <Button title="Maybe later" variant="plain" onPress={() => router.back()} style={{ marginTop: 10 }} />
+        <Button
+          title="Maybe later"
+          variant="plain"
+          onPress={() => safeBack(router, '/(tabs)/recipes')}
+          style={{ marginTop: 10 }}
+        />
       </View>
     </View>
   );

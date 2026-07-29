@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '@/components/toast';
 import { SheetHandle } from '@/components/ui';
 import { ADD_TILES } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -130,7 +131,7 @@ export default function AddRecipeSheet() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close"
-        onPress={() => router.back()}
+        onPress={() => safeBack(router, '/(tabs)/home')}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: c.overlay }}
       />
 

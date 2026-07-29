@@ -9,6 +9,7 @@ import { ChevronLeft, MoreHorizontal } from '@/components/icons';
 import { RecipeGridCard } from '@/components/recipe-card';
 import { RecipePickerSheet } from '@/components/recipe-picker-sheet';
 import { Button, Screen, ScrimButton, SheetHandle } from '@/components/ui';
+import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -26,10 +27,7 @@ export default function CookbookDetail() {
   const [renameValue, setRenameValue] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { cookbooks, recipesInCookbook, renameCookbook, deleteCookbook } = useStore();
-  // Reachable with no back-history (a fresh deep link, or after this stack's
-  // one entry was this screen) — router.back() then fails with a GO_BACK
-  // warning and leaves the user stranded, so fall back to the list.
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/cookbooks'));
+  const goBack = () => safeBack(router, '/cookbooks');
 
   const cookbook = cookbooks.find((cb) => cb.id === id);
 

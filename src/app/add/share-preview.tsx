@@ -7,6 +7,7 @@ import { BigCheck } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, SheetHandle } from '@/components/ui';
 import { RECIPE_SAMPLES } from '@/data/sample';
+import { safeBack } from '@/lib/navigation';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
 
@@ -26,7 +27,7 @@ export default function SharePreview() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close"
-        onPress={() => router.back()}
+        onPress={() => safeBack(router, '/(tabs)/recipes')}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
 

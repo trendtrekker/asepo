@@ -9,6 +9,7 @@ import { Button } from '@/components/ui';
 import { useKeepScreenAwake } from '@/lib/keep-awake';
 import { useStore } from '@/store/app-store';
 import { convertMeasure } from '@/lib/quantity';
+import { safeBack } from '@/lib/navigation';
 import { extractTimer, formatCountdown } from '@/lib/steps';
 import { cancelTimerNotification, scheduleTimerDone } from '@/lib/timer-notifications';
 import { darkColors } from '@/theme/tokens';
@@ -103,8 +104,7 @@ export default function CookMode() {
 
   // Deep links (share URLs, notifications) have no history to pop, so fall
   // back to the recipe rather than leaving a dead exit button.
-  const exit = () =>
-    router.canGoBack() ? router.back() : router.replace({ pathname: `/recipe/[id]`, params: { id: String(id) } });
+  const exit = () => safeBack(router, { pathname: '/recipe/[id]', params: { id: String(id) } });
 
   const c = darkColors;
 
