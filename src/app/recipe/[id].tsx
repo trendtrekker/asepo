@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,7 +30,8 @@ export default function RecipeDetail() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isFavorite, toggleFavorite, getRecipe, deleteRecipe, addRecipeToGrocery, isPro } = useStore();
+  const { isFavorite, toggleFavorite, getRecipe, deleteRecipe, addRecipeToGrocery, isPro, aiConsentGiven } =
+    useStore();
   const { session } = useAuth();
 
   const recipe = getRecipe(id);
@@ -47,6 +48,34 @@ export default function RecipeDetail() {
   const [nutrition, setNutrition] = useState<NutritionEstimate | null>(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [nutritionError, setNutritionError] = useState<string | null>(null);
+
+  const fetchNutrition = useCallback(() => {
+    if (!recipe) return;
+    setNutritionLoading(true);
+    setNutritionError(null);
+    api
+      .estimateNutrition(recipe, session?.access_token ?? null)
+      .then(setNutrition)
+      .catch((e: unknown) =>
+        setNutritionError(e instanceof Error ? e.message : 'Could not estimate nutrition')
+      )
+      .finally(() => setNutritionLoading(false));
+  }, [recipe, session]);
+
+  /**
+   * The estimate is fetched lazily — only once the tab is actually open, and
+   * only with AI consent in hand, since it ships the ingredient list to kie.ai.
+   * Living in an effect rather than the tab handler is what lets granting
+   * consent resume the fetch on the way back: the consent screen pops, `tab`
+   * is still Nutrition, and this fires. The ref keeps it to one attempt, so a
+   * failed request doesn't loop when `nutritionLoading` flips back to false.
+   */
+  const nutritionAttempted = useRef(false);
+  useEffect(() => {
+    if (tab !== 'Nutrition' || !aiConsentGiven || nutritionAttempted.current) return;
+    nutritionAttempted.current = true;
+    fetchNutrition();
+  }, [tab, aiConsentGiven, fetchNutrition]);
 
   if (!recipe) {
     return (
@@ -66,6 +95,13 @@ export default function RecipeDetail() {
   const makeItHealthier = () => {
     if (!isPro) {
       router.push('/paywall');
+      return;
+    }
+    // Sends the full recipe to kie.ai, so it needs the same consent imports do.
+    // No auto-resume on the way back: this is an explicit button, and firing an
+    // AI call the moment the consent screen pops would be a surprise.
+    if (!aiConsentGiven) {
+      router.push('/ai-consent?from=healthify');
       return;
     }
     if (showingHealthier) {
@@ -91,25 +127,17 @@ export default function RecipeDetail() {
       .finally(() => setHealthifying(false));
   };
 
-  // Nutrition is Pro-only, and its estimate is fetched lazily (only once the
-  // user actually opens the tab) and cached for the rest of this visit.
+  // Nutrition is Pro-only. Opening the tab is what triggers the estimate — see
+  // the effect above, which also handles the not-yet-consented case.
   const openTab = (t: Tab) => {
     if (t === 'Nutrition' && !isPro) {
       router.push('/paywall');
       return;
     }
     setTab(t);
-    if (t === 'Nutrition' && !nutrition && !nutritionLoading) {
-      setNutritionLoading(true);
-      setNutritionError(null);
-      api
-        .estimateNutrition(recipe, session?.access_token ?? null)
-        .then(setNutrition)
-        .catch((e: unknown) =>
-          setNutritionError(e instanceof Error ? e.message : 'Could not estimate nutrition')
-        )
-        .finally(() => setNutritionLoading(false));
-    }
+    // Selecting the tab first means granting consent lands back on an already
+    // open Nutrition tab that then fills itself in.
+    if (t === 'Nutrition' && !aiConsentGiven) router.push('/ai-consent?from=nutrition');
   };
 
   const fav = isFavorite(recipe);
@@ -427,7 +455,21 @@ export default function RecipeDetail() {
 
           {tab === 'Nutrition' ? (
             <View style={{ marginTop: 18 }}>
-              {nutritionLoading ? (
+              {!aiConsentGiven ? (
+                <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
+                  <Text style={{ fontSize: 13.5, color: c.textSec, textAlign: 'center' }}>
+                    Estimating nutrition sends this recipe's ingredients to our AI partner, which
+                    is turned off right now.
+                  </Text>
+                  <Pressable
+                    onPress={() => router.push('/ai-consent?from=nutrition')}
+                    accessibilityRole="button">
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.accent }}>
+                      Turn on AI features
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : nutritionLoading ? (
                 <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
                   <ActivityIndicator color={c.accent} />
                   <Text style={{ fontSize: 13.5, color: c.textSec }}>
@@ -439,7 +481,7 @@ export default function RecipeDetail() {
                   <Text style={{ fontSize: 13.5, color: c.textSec, textAlign: 'center' }}>
                     {nutritionError}
                   </Text>
-                  <Pressable onPress={() => openTab('Nutrition')} accessibilityRole="button">
+                  <Pressable onPress={fetchNutrition} accessibilityRole="button">
                     <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.accent }}>Try again</Text>
                   </Pressable>
                 </View>

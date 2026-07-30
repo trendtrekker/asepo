@@ -71,7 +71,7 @@ export default function Profile() {
       return;
     }
     setAiConsentGiven(false);
-    toast.show('AI recipe import turned off');
+    toast.show('AI features turned off');
   };
 
   const logout = async () => {
@@ -186,10 +186,10 @@ export default function Profile() {
           title="Privacy"
           footer={
             aiConsentGiven
-              ? 'Photos, links, and text you import are sent to our AI partner, kie.ai, to pull out the recipe. Nothing else on your device is shared.'
-              : 'Importing is paused until you turn this back on — reading a recipe needs the photo or text to be sent to our AI partner.'
+              ? 'Imports, nutrition estimates, and “Make it healthier” send that recipe to our AI partner, kie.ai. Nothing else on your device is shared.'
+              : 'Importing, nutrition estimates, and “Make it healthier” are paused until you turn this back on — each one needs the recipe sent to our AI partner.'
           }>
-          <Row label="AI recipe import">
+          <Row label="AI features">
             <Toggle value={aiConsentGiven} onPress={toggleAiConsent} />
           </Row>
         </Section>
