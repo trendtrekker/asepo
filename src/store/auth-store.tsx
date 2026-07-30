@@ -127,7 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: body?.error ?? `Could not delete account (${response.status})` };
       }
     } catch (e) {
-      return { error: e instanceof Error ? e.message : 'Could not reach the server' };
+      // e.message here is the raw fetch failure ("TypeError: Failed to fetch"),
+      // which goes straight into a toast — keep it out of the UI.
+      if (__DEV__) console.warn('[auth] delete account failed —', e);
+      return { error: "Asepo couldn't reach the internet. Check your connection and try again." };
     }
 
     // The account (and its session) is gone server-side — drop the local

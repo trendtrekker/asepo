@@ -21,12 +21,31 @@ import type {
 
 export class ApiError extends Error {
   constructor(
+    /**
+     * Plain-language text, safe to render. Every screen that catches an error
+     * shows `e.message` directly, so this must never carry a stack, a status
+     * line, or a raw exception — "TypeError: Failed to fetch" tells a cook
+     * nothing they can act on.
+     */
     message: string,
-    readonly status?: number
+    readonly status?: number,
+    /** The technical cause. Logged in development, never shown. */
+    readonly detail?: string
   ) {
     super(message);
     this.name = 'ApiError';
+    if (__DEV__ && detail) console.warn(`[api] ${message} — ${detail}`);
   }
+}
+
+/** Maps a failed response to something a user can act on. */
+function messageForStatus(status: number): string {
+  if (status === 429) return 'Asepo is busy right now. Wait a moment and try again.';
+  if (status === 408 || status === 504) return 'That took too long to load. Try again.';
+  if (status >= 500) return 'Something went wrong on our end. Try again in a moment.';
+  // Same wording as add/failed.tsx's default, which covers arriving there
+  // without a message at all.
+  return "The link might be private, deleted, or in a format we don't support yet";
 }
 
 async function request<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
@@ -37,14 +56,34 @@ async function request<T>(baseUrl: string, path: string, init?: RequestInit): Pr
       headers: { 'Content-Type': 'application/json', ...init?.headers },
     });
   } catch (cause) {
-    throw new ApiError(`Could not reach the server (${String(cause)})`);
+    // fetch only rejects when the request never got a reply — no connection,
+    // DNS failure, or the backend being down.
+    throw new ApiError(
+      "Asepo couldn't reach the internet. Check your connection and try again.",
+      undefined,
+      `${String(cause)} (${path})`
+    );
   }
 
   if (!response.ok) {
-    throw new ApiError(`Request failed: ${response.status} ${response.statusText}`, response.status);
+    throw new ApiError(
+      messageForStatus(response.status),
+      response.status,
+      `${response.status} ${response.statusText} (${path})`
+    );
   }
 
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch (cause) {
+    // A 200 that isn't JSON — a captive portal or a proxy error page. Left
+    // unwrapped this surfaces as a raw SyntaxError.
+    throw new ApiError(
+      'Something went wrong on our end. Try again in a moment.',
+      response.status,
+      `${String(cause)} (${path})`
+    );
+  }
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -95,7 +134,11 @@ export function createHttpApi(baseUrl: string): RecipeApi {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       }
 
-      throw new ApiError('Extraction timed out');
+      throw new ApiError(
+        "This one's taking longer than expected. Try again.",
+        undefined,
+        `extraction exceeded ${POLL_TIMEOUT_MS}ms`
+      );
     },
 
     async generateRecipeImage(recipe: Recipe) {
