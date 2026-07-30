@@ -328,6 +328,13 @@ function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: stri
   if (!instructions.length) {
     throw new LlmError('Found ingredients but no steps to follow');
   }
+  // The mirror image, and just as unusable: steps with nothing to cook. Left
+  // unguarded this reached the review screen as a recipe with a completely
+  // empty ingredient list, where the only hint anything went wrong was the
+  // low-confidence "we had to guess at some of this" banner.
+  if (!ingredients.length) {
+    throw new LlmError('Found steps but no ingredients');
+  }
 
   return {
     title: String(parsed.title ?? hintTitle ?? 'Imported recipe').trim(),
