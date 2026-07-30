@@ -38,14 +38,27 @@ export class ApiError extends Error {
   }
 }
 
-/** Maps a failed response to something a user can act on. */
-function messageForStatus(status: number): string {
+/**
+ * Maps a failed response to something a user can act on. Takes the path
+ * because a leftover 4xx means different things per endpoint — an unreadable
+ * source on /import, but a permissions problem on the Pro-only routes, and
+ * telling someone their nutrition estimate failed because "the link might be
+ * private" is worse than saying nothing.
+ */
+function messageForStatus(status: number, path: string): string {
+  // requirePro() on the server: 401 for a missing or expired session, 403 for
+  // a real session without Pro.
+  if (status === 401) return 'Sign in to use this.';
+  if (status === 403) return 'This is an Asepo Pro feature.';
   if (status === 429) return 'Asepo is busy right now. Wait a moment and try again.';
   if (status === 408 || status === 504) return 'That took too long to load. Try again.';
   if (status >= 500) return 'Something went wrong on our end. Try again in a moment.';
   // Same wording as add/failed.tsx's default, which covers arriving there
   // without a message at all.
-  return "The link might be private, deleted, or in a format we don't support yet";
+  if (path.startsWith('/import')) {
+    return "The link might be private, deleted, or in a format we don't support yet";
+  }
+  return "Asepo couldn't finish that. Try again.";
 }
 
 async function request<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
@@ -67,7 +80,7 @@ async function request<T>(baseUrl: string, path: string, init?: RequestInit): Pr
 
   if (!response.ok) {
     throw new ApiError(
-      messageForStatus(response.status),
+      messageForStatus(response.status, path),
       response.status,
       `${response.status} ${response.statusText} (${path})`
     );
