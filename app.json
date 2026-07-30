@@ -51,7 +51,17 @@
           "icon": "./assets/images/brand-icon.png",
           "color": "#C2410C"
         }
-      ]
+      ],
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
