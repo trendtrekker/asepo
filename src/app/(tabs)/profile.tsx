@@ -27,6 +27,8 @@ export default function Profile() {
     importLimit,
     profileName,
     setProfileName,
+    aiConsentGiven,
+    setAiConsentGiven,
     resetEverything,
   } = useStore();
   const { user, signOut, deleteAccount } = useAuth();
@@ -56,6 +58,20 @@ export default function Profile() {
   const saveName = () => {
     setProfileName(nameDraft.trim());
     setSheet(null);
+  };
+
+  /**
+   * Withdrawing takes effect immediately, but opting back in goes through the
+   * full consent screen rather than flipping silently — the switch alone
+   * doesn't tell anyone what they'd be agreeing to.
+   */
+  const toggleAiConsent = () => {
+    if (!aiConsentGiven) {
+      router.push('/ai-consent?from=settings');
+      return;
+    }
+    setAiConsentGiven(false);
+    toast.show('AI recipe import turned off');
   };
 
   const logout = async () => {
@@ -163,6 +179,18 @@ export default function Profile() {
             <Text style={{ fontSize: 14, color: c.textSec, maxWidth: 180 }} numberOfLines={1}>
               {allergies.length ? allergies.join(', ') : 'None'} ›
             </Text>
+          </Row>
+        </Section>
+
+        <Section
+          title="Privacy"
+          footer={
+            aiConsentGiven
+              ? 'Photos, links, and text you import are sent to our AI partner, kie.ai, to pull out the recipe. Nothing else on your device is shared.'
+              : 'Importing is paused until you turn this back on — reading a recipe needs the photo or text to be sent to our AI partner.'
+          }>
+          <Row label="AI recipe import">
+            <Toggle value={aiConsentGiven} onPress={toggleAiConsent} />
           </Row>
         </Section>
 
@@ -529,7 +557,16 @@ function StepperButton({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  footer,
+  children,
+}: {
+  title: string;
+  /** Explanatory caption under the card, for rows that need the "why". */
+  footer?: string;
+  children: React.ReactNode;
+}) {
   const { colors: c } = useTheme();
   return (
     <View style={{ marginTop: 8 }}>
@@ -555,6 +592,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         }}>
         {children}
       </View>
+      {footer ? (
+        <Text
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: 8,
+            fontSize: 12,
+            lineHeight: 17,
+            color: c.textSec,
+          }}>
+          {footer}
+        </Text>
+      ) : null}
     </View>
   );
 }

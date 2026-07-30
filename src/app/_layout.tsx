@@ -22,6 +22,8 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
 
+        <Stack.Screen name="ai-consent" options={{ presentation: 'modal' }} />
+
         {/* Import flow — presented over whatever screen launched it. */}
         <Stack.Screen
           name="add/index"

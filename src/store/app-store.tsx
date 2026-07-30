@@ -178,6 +178,10 @@ type Store = {
   /* profile */
   profileName: string;
   setProfileName: (name: string) => void;
+
+  /** Shown once, before the first AI-backed import runs. */
+  aiConsentGiven: boolean;
+  setAiConsentGiven: (v: boolean) => void;
 };
 
 const AppContext = createContext<Store | null>(null);
@@ -198,6 +202,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [importsUsed, setImportsUsed] = useState(0);
   const [isPro, setPro] = useState(false);
   const [profileName, setProfileName] = useState('');
+  const [aiConsentGiven, setAiConsentGiven] = useState(false);
 
   /** False until storage has been read, so we never save over saved data. */
   const [hydrated, setHydrated] = useState(false);
@@ -230,6 +235,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setImportsUsed(saved.importsUsed ?? 0);
         setPro(saved.isPro ?? false);
         setProfileName(saved.profileName ?? '');
+        setAiConsentGiven(saved.aiConsentGiven ?? false);
       } else {
         await seedFromApi();
       }
@@ -257,6 +263,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       importsUsed,
       isPro,
       profileName,
+      aiConsentGiven,
     });
   }, [
     hydrated,
@@ -269,6 +276,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     importsUsed,
     isPro,
     profileName,
+    aiConsentGiven,
   ]);
 
   // Debounced so adding several plan entries in a row doesn't re-scan and
@@ -482,6 +490,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           setImportsUsed(0);
           setPro(false);
           setProfileName('');
+          setAiConsentGiven(false);
           setRecipes(RECIPE_SAMPLES);
           setStoredCookbooks(COOKBOOK_SEED);
           setFavorites(Object.fromEntries(RECIPE_SAMPLES.map((r) => [r.id, r.favorite])));
@@ -490,6 +499,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
       profileName,
       setProfileName,
+
+      aiConsentGiven,
+      setAiConsentGiven,
     }),
     [
       recipes,
@@ -506,6 +518,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       importsUsed,
       isPro,
       profileName,
+      aiConsentGiven,
       addRecipeToGrocery,
     ]
   );

@@ -23,6 +23,8 @@ export type PersistedState = {
   isPro: boolean;
   /** Optional so a state saved before this field existed still loads. */
   profileName?: string;
+  /** Optional so a state saved before this field existed still loads. */
+  aiConsentGiven?: boolean;
 };
 
 export async function loadState(): Promise<PersistedState | null> {

@@ -15,7 +15,7 @@ export default function Importing() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { recordImport, setPendingImport, pendingImportSource } = useStore();
+  const { recordImport, setPendingImport, pendingImportSource, aiConsentGiven } = useStore();
 
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
@@ -47,6 +47,14 @@ export default function Importing() {
     // against an empty source.
     if (!pendingImportSource) {
       router.replace('/add');
+      return;
+    }
+
+    // First AI-backed import of the install — get consent before the source
+    // (photo, link, or text) leaves the device. The consent screen resumes
+    // straight back here once granted.
+    if (!aiConsentGiven) {
+      router.replace('/ai-consent');
       return;
     }
 
