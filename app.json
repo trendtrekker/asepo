@@ -22,10 +22,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.asepo.app",
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "package": "com.asepo.app"
     },
     "web": {
       "output": "static",
@@ -45,7 +42,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Asepo needs access to your photos to import a recipe from a screenshot.",
-          "cameraPermission": "Asepo uses your camera to scan recipe cards and cookbook pages."
+          "cameraPermission": "Asepo uses your camera to scan recipe cards and cookbook pages.",
+          "microphonePermission": false
         }
       ],
       [
