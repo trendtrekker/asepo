@@ -58,7 +58,7 @@ export default function PasteText() {
 
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 18 }}>
         <Text style={{ fontSize: 13, color: c.textSec, marginBottom: 10 }}>
-          Paste a recipe from Notes, an email, or anywhere else — we'll pull out the
+          Paste a recipe from Notes, an email, or anywhere else — we’ll pull out the
           ingredients and steps.
         </Text>
         <TextInput

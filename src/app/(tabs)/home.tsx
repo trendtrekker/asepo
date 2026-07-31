@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, Text, View, useAnimatedValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Refresh } from '@/components/icons';
@@ -12,17 +12,15 @@ import { addDays, fromIso, todayIso, weekdayShort } from '@/lib/dates';
 import { sortRecipes } from '@/lib/filter-recipes';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
-import { useToast } from '@/components/toast';
 
 /** Screen 14 — Home. */
 export default function Home() {
-  const toast = useToast();
   const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe } = useStore();
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const spin = useRef(new Animated.Value(0)).current;
+  const spin = useAnimatedValue(0);
 
   useEffect(() => {
     if (!refreshing) return;
@@ -118,7 +116,7 @@ export default function Home() {
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                 }}>
-                Tonight's dinner
+                Tonight’s dinner
               </Text>
               <Text style={{ marginTop: 4, fontSize: 18, fontWeight: '700', color: c.text }}>
                 {tonight.title}

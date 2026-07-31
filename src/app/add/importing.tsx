@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, Image, ScrollView, Text, View, useAnimatedValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
@@ -27,8 +27,8 @@ export default function Importing() {
    * replace each entry as the real label arrives.
    */
   const [labels, setLabels] = useState<string[]>([...IMPORT_PIPELINE]);
-  const pulse = useRef(new Animated.Value(0.4)).current;
-  const readyPop = useRef(new Animated.Value(0)).current;
+  const pulse = useAnimatedValue(0.4);
+  const readyPop = useAnimatedValue(0);
 
   useEffect(() => {
     const loop = Animated.loop(

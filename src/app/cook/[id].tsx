@@ -50,6 +50,11 @@ export default function CookMode() {
     remainingRef.current = remaining;
   }, [remaining]);
 
+  // Two effects below list this in their deps, so it needs a stable identity.
+  // React Compiler can't prove the manual memo is safe to keep and flags it;
+  // dropping the useCallback would give it a new identity every render and
+  // re-fire both effects, so the manual memo stays.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const stopTimer = useCallback(() => {
     if (tick.current) clearInterval(tick.current);
     tick.current = null;
@@ -92,12 +97,21 @@ export default function CookMode() {
     if (!running || remaining !== 0) return;
     // Already fired (or about to, within a second) — nothing to cancel.
     notificationId.current = null;
+    // Deliberate: the countdown's own interval is the obvious place to detect
+    // zero, but calling toast.show() from inside that updater is what caused
+    // "cannot update a component while rendering a different component"
+    // (fixed in f05bde0). Reacting here, one render later, is the fix.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     stopTimer();
     toast.show('Timer done');
   }, [running, remaining, stopTimer, toast]);
 
   // Reset the timer whenever the step changes.
   useEffect(() => {
+    // Clearing a running countdown is a side effect of moving between steps,
+    // not something derivable during render — the interval has to be torn down
+    // either way, and stopTimer owns that.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     stopTimer();
     setRemaining(null);
   }, [index, stopTimer]);

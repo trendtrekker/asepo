@@ -8,7 +8,6 @@ import { RecipeGridCard, RecipeListRow } from '@/components/recipe-card';
 import { EmptyIllustration, Screen } from '@/components/ui';
 import { SORT_OPTIONS } from '@/data/sample';
 import { applyChip, applyFilters, sortRecipes } from '@/lib/filter-recipes';
-import { useToast } from '@/components/toast';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -16,7 +15,6 @@ const FILTER_CHIPS = ['All', 'Favorites', 'Recently added', 'Quick (<30 min)'];
 
 /** Screen 15 — Recipe library. */
 export default function Recipes() {
-  const toast = useToast();
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();

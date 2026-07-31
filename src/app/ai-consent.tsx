@@ -86,11 +86,11 @@ export default function AiConsent() {
           ingredients and steps.
         </Text>
         <Text style={{ marginTop: 12, fontSize: 15, lineHeight: 22, color: c.textSec }}>
-          Nutrition estimates and “Make it healthier” send that recipe's title, ingredients, and
+          Nutrition estimates and “Make it healthier” send that recipe’s title, ingredients, and
           steps to kie.ai too — including for recipes you typed in yourself.
         </Text>
         <Text style={{ marginTop: 12, fontSize: 15, lineHeight: 22, color: c.textSec }}>
-          Only the recipe you're working with is shared — never your whole library, your account
+          Only the recipe you’re working with is shared — never your whole library, your account
           details, or anything else on your device. You can turn this off any time in Profile.
         </Text>
 

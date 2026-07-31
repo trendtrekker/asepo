@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Easing, Text, View, useAnimatedValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Screen } from '@/components/ui';
@@ -11,7 +11,7 @@ export default function NotificationPrimer() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const pulse = useRef(new Animated.Value(0.4)).current;
+  const pulse = useAnimatedValue(0.4);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -78,7 +78,7 @@ export default function NotificationPrimer() {
           color: c.textSec,
           textAlign: 'center',
         }}>
-        We'll remind you to plan meals, defrost ingredients, and grab groceries before you run out
+        We’ll remind you to plan meals, defrost ingredients, and grab groceries before you run out
       </Text>
 
       <View style={{ flex: 1 }} />

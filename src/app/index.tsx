@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Easing, Image, Pressable, Text, View, useAnimatedValue } from 'react-native';
 
 import { BRAND_NAVY } from '@/theme/tokens';
 
@@ -13,7 +13,7 @@ import { BRAND_NAVY } from '@/theme/tokens';
  */
 export default function SplashScreen() {
   const router = useRouter();
-  const anim = useRef(new Animated.Value(0)).current;
+  const anim = useAnimatedValue(0);
 
   useEffect(() => {
     Animated.timing(anim, {

@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Heart } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
-import { calLabel, metaLine, timeLabel, type Recipe } from '@/data/sample';
+import { metaLine, type Recipe } from '@/data/sample';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 

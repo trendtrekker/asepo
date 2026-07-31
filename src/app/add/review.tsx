@@ -44,7 +44,12 @@ export default function ImportReview() {
   // routinely takes 30-50s, so this needs its own loading state — otherwise
   // the gradient placeholder looks identical whether one is on the way or not.
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | undefined>(undefined);
-  const [generatingImage, setGeneratingImage] = useState(false);
+  // Seeded from the same condition the generation effect below guards on, so
+  // the first paint already shows the spinner instead of flipping it on in an
+  // effect and forcing a second render.
+  const [generatingImage, setGeneratingImage] = useState(
+    () => !!pendingImport && !pendingImport.imageUrl
+  );
   /**
    * Set the moment the user hits Save. Generation used to die with the screen
    * — if Save happened before kie.ai's 30-50s finished, the in-flight job was
@@ -57,7 +62,6 @@ export default function ImportReview() {
   useEffect(() => {
     if (pendingImport?.imageUrl || !pendingImport) return;
     let onScreen = true;
-    setGeneratingImage(true);
 
     const run = async () => {
       const task = await api

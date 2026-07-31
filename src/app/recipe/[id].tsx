@@ -458,7 +458,7 @@ export default function RecipeDetail() {
               {!aiConsentGiven ? (
                 <View style={{ alignItems: 'center', paddingVertical: 30, gap: 10 }}>
                   <Text style={{ fontSize: 13.5, color: c.textSec, textAlign: 'center' }}>
-                    Estimating nutrition sends this recipe's ingredients to our AI partner, which
+                    Estimating nutrition sends this recipe’s ingredients to our AI partner, which
                     is turned off right now.
                   </Text>
                   <Pressable
@@ -527,7 +527,7 @@ export default function RecipeDetail() {
                       paddingHorizontal: 14,
                     }}>
                     <Text style={{ fontSize: 12.5, lineHeight: 18, color: c.text }}>
-                      Estimated from this recipe's actual ingredients — not a lookup, an AI estimate,
+                      Estimated from this recipe’s actual ingredients — not a lookup, an AI estimate,
                       so treat it as a guide rather than lab-verified.
                     </Text>
                   </View>

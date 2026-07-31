@@ -41,7 +41,7 @@ export default function ImportLimit() {
         <SheetHandle />
 
         <Text style={{ fontSize: 21, fontWeight: '700', color: c.text }}>
-          You've used all {importLimit} free imports this month
+          You’ve used all {importLimit} free imports this month
         </Text>
         <Text style={{ marginTop: 6, fontSize: 14, color: c.textSec }}>
           Upgrade to Pro for unlimited imports and more

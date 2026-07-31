@@ -85,7 +85,7 @@ export default function SignIn() {
           color: c.textSec,
           textAlign: 'center',
         }}>
-        By continuing you agree to Asepo's <Text style={{ color: c.accent }}>Terms</Text> and{' '}
+        By continuing you agree to Asepo’s <Text style={{ color: c.accent }}>Terms</Text> and{' '}
         <Text style={{ color: c.accent }}>Privacy Policy</Text>
       </Text>
 

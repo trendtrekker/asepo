@@ -35,7 +35,7 @@ export default function ImportFailed() {
 
       <Text
         style={{ marginTop: 26, fontSize: 23, fontWeight: '700', color: c.text, textAlign: 'center' }}>
-        We couldn't read that one
+        We couldn’t read that one
       </Text>
       <Text
         style={{

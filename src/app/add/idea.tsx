@@ -57,7 +57,7 @@ export default function TypeAMeal() {
 
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 18 }}>
         <Text style={{ fontSize: 13, color: c.textSec, marginBottom: 10 }}>
-          Just name a dish and we'll write a full recipe for it — ingredients, quantities, and
+          Just name a dish and we’ll write a full recipe for it — ingredients, quantities, and
           steps.
         </Text>
         <TextInput
