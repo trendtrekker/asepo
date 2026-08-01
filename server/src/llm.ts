@@ -43,7 +43,22 @@ export type NutritionEstimate = {
   fat: number;
 };
 
-export class LlmError extends Error {}
+export class LlmError extends Error {
+  /**
+   * True only for messages written to be read by whoever is holding the
+   * phone. Everything else here is diagnostic — missing API keys, protocol
+   * mismatches, malformed replies, and text passed straight through from
+   * kie.ai — and callers must not surface those. Defaults to false so a new
+   * throw is private until someone deliberately decides otherwise.
+   */
+  constructor(
+    message: string,
+    readonly userSafe = false
+  ) {
+    super(message);
+    this.name = 'LlmError';
+  }
+}
 
 type Protocol = 'responses' | 'messages' | 'chat';
 
@@ -303,7 +318,7 @@ function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: stri
   }
 
   const parsed = parseJsonReply(content);
-  if (parsed?.isRecipe === false) throw new LlmError('That does not look like a recipe');
+  if (parsed?.isRecipe === false) throw new LlmError('That does not look like a recipe', true);
 
   const ingredients: Ingredient[] = Array.isArray(parsed.ingredients)
     ? parsed.ingredients
@@ -320,20 +335,20 @@ function toLlmRecipe(content: string | undefined, payload: any, hintTitle?: stri
     : [];
 
   if (!ingredients.length && !instructions.length) {
-    throw new LlmError('The model found no recipe there');
+    throw new LlmError('The model found no recipe there', true);
   }
   // A recipe without steps isn't usable — treat it as a failed extraction so
   // callers with a fallback (the heuristic parser) get a chance to do better,
   // rather than silently handing back ingredients with nothing to do with them.
   if (!instructions.length) {
-    throw new LlmError('Found ingredients but no steps to follow');
+    throw new LlmError('Found ingredients but no steps to follow', true);
   }
   // The mirror image, and just as unusable: steps with nothing to cook. Left
   // unguarded this reached the review screen as a recipe with a completely
   // empty ingredient list, where the only hint anything went wrong was the
   // low-confidence "we had to guess at some of this" banner.
   if (!ingredients.length) {
-    throw new LlmError('Found steps but no ingredients');
+    throw new LlmError('Found steps but no ingredients', true);
   }
 
   return {
@@ -415,7 +430,7 @@ export async function healthifyRecipe(recipe: {
     : [];
 
   if (!ingredients.length || !instructions.length) {
-    throw new LlmError('Could not rework that recipe');
+    throw new LlmError('Could not rework that recipe', true);
   }
 
   return {
@@ -462,7 +477,7 @@ export async function estimateNutrition(recipe: {
   };
 
   if (Object.values(result).some((n) => Number.isNaN(n))) {
-    throw new LlmError('Could not estimate nutrition for that recipe');
+    throw new LlmError('Could not estimate nutrition for that recipe', true);
   }
 
   return result;

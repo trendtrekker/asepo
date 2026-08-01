@@ -29,7 +29,35 @@ export type ExtractedRecipe = {
   strategy?: 'json-ld' | 'llm' | 'llm-inferred' | 'llm-idea' | 'heuristic' | 'vision' | 'vision-inferred';
 };
 
+/**
+ * A failure with a message written for the person holding the phone. Only
+ * these reach the app — index.ts turns anything else into a generic message,
+ * so throwing a bare Error keeps its detail server-side.
+ */
 export class ExtractionError extends Error {}
+
+/**
+ * Server misconfiguration. "Set LLM_API_KEY", "see server/.env" — those are
+ * instructions for whoever runs the server, and useless to a cook who can't
+ * act on them. Log the real reason here and tell the user the honest,
+ * actionable part: it isn't working right now.
+ */
+function unavailable(reason: string): ExtractionError {
+  console.error(`[extract] unavailable — ${reason}`);
+  return new ExtractionError('Recipe import is unavailable right now. Try again shortly.');
+}
+
+/**
+ * Most LlmError messages are diagnostic (malformed replies, protocol
+ * mismatches, text passed through verbatim from kie.ai). Only the ones
+ * deliberately marked userSafe describe something the user can understand or
+ * act on; everything else is logged and replaced.
+ */
+function userFacing(e: unknown, fallback: string): ExtractionError {
+  if (e instanceof LlmError && e.userSafe) return new ExtractionError(e.message);
+  console.error('[extract] model failure —', e);
+  return new ExtractionError(fallback);
+}
 
 /* ------------------------------------------------------------------ *
  * 1. JSON-LD
@@ -255,11 +283,11 @@ export async function extractFromIdea(dishName: string): Promise<ExtractedRecipe
     throw new ExtractionError('Type a dish first');
   }
   if (!isLlmConfigured()) {
-    throw new ExtractionError('Looking up a recipe needs a language model, which is not configured');
+    throw unavailable('idea import: no LLM configured (set LLM_API_KEY or KIE_API_KEY)');
   }
 
   const llm = await extractIdea(trimmed).catch((e) => {
-    throw new ExtractionError(e instanceof LlmError ? e.message : 'Could not find that recipe');
+    throw userFacing(e, 'Could not find a recipe for that. Try a more specific dish name.');
   });
 
   return {
@@ -282,15 +310,15 @@ export async function extractFromIdea(dishName: string): Promise<ExtractedRecipe
  */
 export async function extractFromImage(imageDataUrl: string): Promise<ExtractedRecipe> {
   if (!isVisionConfigured()) {
-    throw new ExtractionError(
+    throw unavailable(
       isLlmConfigured()
-        ? 'Photo import needs the LLM in "responses" mode — see server/.env'
-        : 'Photo import needs a language model, which is not configured'
+        ? 'photo import: needs LLM_PROTOCOL=responses'
+        : 'photo import: no LLM configured (set LLM_API_KEY or KIE_API_KEY)'
     );
   }
 
   const llm = await extractWithImage(imageDataUrl).catch((e) => {
-    throw new ExtractionError(e instanceof LlmError ? e.message : 'Could not read that photo');
+    throw userFacing(e, 'Could not read a recipe from that photo.');
   });
 
   return {

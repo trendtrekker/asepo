@@ -182,7 +182,17 @@ app.post('/import', (req, res) => {
       job.status = 'ready';
     } catch (e) {
       job.status = 'failed';
-      job.error = e instanceof Error ? e.message : String(e);
+      // This message is rendered verbatim on the import-failed screen, so only
+      // ExtractionError — the class whose messages are written for users —
+      // passes through. Anything else is an internal fault (a bad fetch, a
+      // malformed model reply, a plain bug) whose text would mean nothing to a
+      // cook, so it stays in the server log and the app gets something honest.
+      if (e instanceof ExtractionError) {
+        job.error = e.message;
+      } else {
+        console.error(`[import ${id}] failed —`, e);
+        job.error = 'Something went wrong reading that. Try again.';
+      }
     }
   })();
 });
@@ -222,7 +232,11 @@ app.post('/images', async (req, res) => {
     imageJobs.get(id)!.kieTaskId = kieTaskId;
     res.json({ taskId: id, status: 'pending' });
   } catch (e) {
-    const error = e instanceof KieError ? e.message : 'Could not start generation';
+    // KieError messages are diagnostic — a missing KIE_API_KEY, or kie.ai's own
+    // response text passed through verbatim. The app currently swallows image
+    // failures, but that's a reason not to rely on it, not a reason to leak.
+    console.error(`[images ${id}] failed to start —`, e);
+    const error = 'Could not generate a photo for this recipe.';
     imageJobs.set(id, { status: 'failed', error, createdAt: Date.now() });
     res.status(e instanceof KieError ? 400 : 500).json({ taskId: id, status: 'failed', error });
   }
@@ -306,15 +320,21 @@ app.post('/healthify', async (req, res) => {
     return res.status(400).json({ error: 'title, ingredients and instructions are required' });
   }
   if (!isLlmConfigured()) {
-    return res.status(503).json({ error: 'Not configured — set LLM_API_KEY or KIE_API_KEY' });
+    // The env-var names are for whoever runs the server, not the caller.
+    console.error('[server] LLM not configured — set LLM_API_KEY or KIE_API_KEY');
+    return res.status(503).json({ error: 'This is unavailable right now. Try again shortly.' });
   }
 
   try {
     const result = await healthifyRecipe({ title, ingredients, instructions, servings });
     res.json(result);
   } catch (e) {
-    const error = e instanceof LlmError ? e.message : 'Could not rework that recipe';
-    res.status(e instanceof LlmError ? 422 : 500).json({ error });
+    // Only deliberately user-safe model errors carry text worth showing.
+    const safe = e instanceof LlmError && e.userSafe;
+    if (!safe) console.error('[healthify] failed —', e);
+    res.status(e instanceof LlmError ? 422 : 500).json({
+      error: safe ? (e as LlmError).message : 'Could not rework that recipe',
+    });
   }
 });
 
@@ -336,15 +356,20 @@ app.post('/nutrition', async (req, res) => {
     return res.status(400).json({ error: 'title, ingredients and servings are required' });
   }
   if (!isLlmConfigured()) {
-    return res.status(503).json({ error: 'Not configured — set LLM_API_KEY or KIE_API_KEY' });
+    // The env-var names are for whoever runs the server, not the caller.
+    console.error('[server] LLM not configured — set LLM_API_KEY or KIE_API_KEY');
+    return res.status(503).json({ error: 'This is unavailable right now. Try again shortly.' });
   }
 
   try {
     const result = await estimateNutrition({ title, ingredients, servings });
     res.json(result);
   } catch (e) {
-    const error = e instanceof LlmError ? e.message : 'Could not estimate nutrition for that recipe';
-    res.status(e instanceof LlmError ? 422 : 500).json({ error });
+    const safe = e instanceof LlmError && e.userSafe;
+    if (!safe) console.error('[nutrition] failed —', e);
+    res.status(e instanceof LlmError ? 422 : 500).json({
+      error: safe ? (e as LlmError).message : 'Could not estimate nutrition for that recipe',
+    });
   }
 });
 
