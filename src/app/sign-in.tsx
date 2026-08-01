@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,14 +15,20 @@ export default function SignIn() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { session, signInWithGoogle } = useAuth();
+  const isFocused = useIsFocused();
   const [googleBusy, setGoogleBusy] = useState(false);
 
   // The OAuth round-trip lands the session asynchronously via
   // onAuthStateChange, not as a direct return value from signInWithGoogle —
   // watch for it rather than navigating from inside the button handler.
+  //
+  // Focus-guarded because Google's deep link pushes auth-callback on top of
+  // this screen while it stays mounted. Both would see the same session land
+  // and both would navigate, stacking /paywall twice. Whoever is on screen
+  // owns the transition: auth-callback for OAuth, this screen for email.
   useEffect(() => {
-    if (session) router.push('/paywall');
-  }, [session, router]);
+    if (session && isFocused) router.push('/paywall');
+  }, [session, isFocused, router]);
 
   const continueWithGoogle = async () => {
     if (googleBusy) return;
