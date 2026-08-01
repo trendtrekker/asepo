@@ -9,6 +9,7 @@ import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen, SectionTitle } from '@/components/ui';
 import { type Recipe } from '@/data/sample';
 import { api, ApiError } from '@/lib/api';
+import { importAccuracy } from '@/lib/import-accuracy';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -125,21 +126,15 @@ export default function ImportReview() {
     .map((cb) => cb.name);
 
   /**
-   * The banner adapts to how the recipe was obtained. JSON-LD is published by
-   * the site itself, so nagging the user to check it is noise; a model reading
-   * a caption genuinely can misread quantities.
+   * The banner adapts to how the recipe was obtained — see import-accuracy.ts.
+   * Keyed off the extraction strategy rather than a confidence number, because
+   * "misread a source" and "wrote it from a dish name" need different wording
+   * and a single scalar can't tell them apart.
    */
-  const confidence = pendingImport?.confidence ?? 0;
-  const accuracy =
-    confidence >= 1
-      ? null
-      : confidence >= 0.85
-        ? { tone: 'info' as const, message: 'Double-check the amounts — we extracted these automatically.' }
-        : {
-            tone: 'warn' as const,
-            message:
-              'We had to guess at some of this. Check the quantities and steps carefully before saving.',
-          };
+  const accuracy = importAccuracy({
+    strategy: pendingImport?.strategy,
+    confidence: pendingImport?.confidence,
+  });
 
   /** Commits the edited recipe to the library, then closes the import flow. */
   const save = () => {

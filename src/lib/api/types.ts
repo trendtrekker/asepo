@@ -44,9 +44,25 @@ export type ExtractedRecipe = {
   calories?: number;
   imageUrl?: string;
   source?: { handle: string; platform: string };
-  /** Extractor confidence 0–1, if the backend reports it. Drives the "double-check" banner. */
+  /**
+   * Extractor confidence 0–1, if the backend reports it. Kept as a fallback
+   * for imports made before `strategy` existed — prefer `strategy`, which
+   * distinguishes a misread source from a recipe the model authored outright.
+   */
   confidence?: number;
+  /** Which extraction path produced this. Drives the review screen's banner. */
+  strategy?: ExtractStrategy;
 };
+
+/** Mirrors the server's union in server/src/extract.ts. */
+export type ExtractStrategy =
+  | 'json-ld'
+  | 'llm'
+  | 'llm-inferred'
+  | 'llm-idea'
+  | 'heuristic'
+  | 'vision'
+  | 'vision-inferred';
 
 /** Image generation is asynchronous — kie.ai returns a task, not an image. */
 export type ImageTask = {
