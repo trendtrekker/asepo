@@ -167,7 +167,7 @@ export default function Recipes() {
           zIndex: 10,
         }}>
         <Text style={{ fontSize: 13, fontWeight: '500', color: c.textSec }}>
-          {recipes.length} recipes
+          {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
         </Text>
         <Pressable onPress={() => setSortOpen((o) => !o)} accessibilityRole="button">
           <Text style={{ fontSize: 13, fontWeight: '600', color: c.accent }}>{sort} ▾</Text>
@@ -216,7 +216,10 @@ export default function Recipes() {
           <View style={{ alignItems: 'center', paddingTop: 56, paddingHorizontal: 30 }}>
             <EmptyIllustration />
             <Text style={{ marginTop: 18, fontSize: 17, fontWeight: '700', color: c.text }}>
-              No recipes match
+              {/* "No recipes match" is filter language — wrong when the
+                  library is simply empty. The subtitle below already made
+                  this distinction; the heading never did. */}
+              {filtersActive ? 'No recipes match' : 'No recipes yet'}
             </Text>
             <Text
               style={{

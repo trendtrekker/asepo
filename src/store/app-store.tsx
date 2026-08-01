@@ -182,6 +182,10 @@ type Store = {
   /** Shown once, before the first AI-backed import runs. */
   aiConsentGiven: boolean;
   setAiConsentGiven: (v: boolean) => void;
+
+  /** Most recent first, deduped, capped — drives Search's idle screen. */
+  recentSearches: string[];
+  recordSearch: (query: string) => void;
 };
 
 const AppContext = createContext<Store | null>(null);
@@ -203,6 +207,23 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [isPro, setPro] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [aiConsentGiven, setAiConsentGiven] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  /**
+   * Search used to show four invented "recent searches" from sample data, so
+   * a fresh install claimed a history the user never had. This records the
+   * real thing: newest first, case-insensitively deduped so retyping a term
+   * moves it up rather than listing it twice, and capped so the idle screen
+   * stays short.
+   */
+  const recordSearch = useCallback((query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setRecentSearches((current) => [
+      trimmed,
+      ...current.filter((s) => s.toLowerCase() !== trimmed.toLowerCase()),
+    ].slice(0, 6));
+  }, []);
 
   /** False until storage has been read, so we never save over saved data. */
   const [hydrated, setHydrated] = useState(false);
@@ -236,6 +257,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setPro(saved.isPro ?? false);
         setProfileName(saved.profileName ?? '');
         setAiConsentGiven(saved.aiConsentGiven ?? false);
+        setRecentSearches(saved.recentSearches ?? []);
       } else {
         await seedFromApi();
       }
@@ -264,6 +286,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       isPro,
       profileName,
       aiConsentGiven,
+      recentSearches,
     });
   }, [
     hydrated,
@@ -277,6 +300,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     isPro,
     profileName,
     aiConsentGiven,
+    recentSearches,
   ]);
 
   // Debounced so adding several plan entries in a row doesn't re-scan and
@@ -491,6 +515,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           setPro(false);
           setProfileName('');
           setAiConsentGiven(false);
+          setRecentSearches([]);
           setRecipes(RECIPE_SAMPLES);
           setStoredCookbooks(COOKBOOK_SEED);
           setFavorites(Object.fromEntries(RECIPE_SAMPLES.map((r) => [r.id, r.favorite])));
@@ -502,6 +527,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
       aiConsentGiven,
       setAiConsentGiven,
+
+      recentSearches,
+      recordSearch,
     }),
     [
       recipes,
@@ -519,6 +547,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       isPro,
       profileName,
       aiConsentGiven,
+      recentSearches,
+      recordSearch,
       addRecipeToGrocery,
     ]
   );

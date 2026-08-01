@@ -6,13 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock, Search as SearchIcon } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, EmptyIllustration, Screen } from '@/components/ui';
-import {
-  ALL_INGREDIENTS,
-  ALL_TAGS,
-  metaLine,
-  RECENT_SEARCHES,
-  SUGGESTED_SEARCHES,
-} from '@/data/sample';
+import { ALL_INGREDIENTS, ALL_TAGS, metaLine, SUGGESTED_SEARCHES } from '@/data/sample';
 import { searchRecipes } from '@/lib/filter-recipes';
 import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
@@ -24,7 +18,7 @@ export default function Search() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const { recipes: allRecipes, cookbooks: allCookbooks } = useStore();
+  const { recipes: allRecipes, cookbooks: allCookbooks, recentSearches, recordSearch } = useStore();
 
   const q = query.trim().toLowerCase();
   const recipes = searchRecipes(allRecipes, query);
@@ -53,6 +47,10 @@ export default function Search() {
             value={query}
             onChangeText={setQuery}
             autoFocus
+            // Recorded on submit rather than on every keystroke, or the list
+            // would fill with every prefix of what was actually typed.
+            onSubmitEditing={() => recordSearch(query)}
+            returnKeyType="search"
             placeholder="Search recipes, ingredients…"
             placeholderTextColor={c.textSec}
             style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 10 }}
@@ -68,28 +66,36 @@ export default function Search() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}>
         {idle ? (
           <View>
-            <SectionLabel>Recent searches</SectionLabel>
-            <View style={{ marginTop: 8 }}>
-              {RECENT_SEARCHES.map((s) => (
-                <Pressable
-                  key={s}
-                  onPress={() => setQuery(s)}
-                  accessibilityRole="button"
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: c.border,
-                  }}>
-                  <Clock color={c.textSec} />
-                  <Text style={{ fontSize: 14.5, fontWeight: '500', color: c.text }}>{s}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* Hidden entirely until there's real history — this used to list
+                four invented searches from sample data on a fresh install. */}
+            {recentSearches.length > 0 ? (
+              <>
+                <SectionLabel>Recent searches</SectionLabel>
+                <View style={{ marginTop: 8 }}>
+                  {recentSearches.map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => setQuery(s)}
+                      accessibilityRole="button"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                        paddingVertical: 10,
+                        borderBottomWidth: 1,
+                        borderBottomColor: c.border,
+                      }}>
+                      <Clock color={c.textSec} />
+                      <Text style={{ fontSize: 14.5, fontWeight: '500', color: c.text }}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
 
-            <SectionLabel style={{ marginTop: 20 }}>Suggested</SectionLabel>
+            <SectionLabel style={{ marginTop: recentSearches.length > 0 ? 20 : 0 }}>
+              Suggested
+            </SectionLabel>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
               {SUGGESTED_SEARCHES.map((s) => (
                 <Pressable

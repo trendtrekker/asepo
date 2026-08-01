@@ -15,7 +15,6 @@ import { Animated } from 'react-native';
  */
 export function useAnimatedValue(initialValue: number): Animated.Value {
   const ref = useRef<Animated.Value | null>(null);
-  // eslint-disable-next-line react-hooks/refs
   if (ref.current == null) {
     ref.current = new Animated.Value(initialValue);
   }

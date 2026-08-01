@@ -14,14 +14,24 @@ import { sortRecipes } from '@/lib/filter-recipes';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
+/** "Good morning" until noon, "Good afternoon" until 6pm, then evening. */
+function greetingFor(hour: number): string {
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 /** Screen 14 — Home. */
 export default function Home() {
-  const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe } = useStore();
+  const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe, profileName } = useStore();
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const spin = useAnimatedValue(0);
+
+  const greeting = greetingFor(new Date().getHours());
+  const name = profileName.trim();
 
   useEffect(() => {
     if (!refreshing) return;
@@ -65,7 +75,11 @@ export default function Home() {
             justifyContent: 'space-between',
           }}>
           <Text style={{ fontSize: 25, fontWeight: '700', color: c.text, letterSpacing: -0.4 }}>
-            Good evening, Alex
+            {/* Both halves used to be hardcoded — it greeted every user as
+                "Alex" and said "Good evening" at any hour. Drop the name
+                entirely rather than inventing one when none is set. */}
+            {greeting}
+            {name ? `, ${name}` : ''}
           </Text>
           <Pressable
             onPress={() => setRefreshing(true)}
@@ -227,6 +241,10 @@ export default function Home() {
 function Carousel({ title, recipes }: { title: string; recipes: Recipe[] }) {
   const c = useColors();
   const router = useRouter();
+  // A heading over an empty row reads as something failing to load. On a
+  // fresh install both carousels are empty, so Home opened on two orphaned
+  // titles — better to show nothing until there's something to show.
+  if (recipes.length === 0) return null;
   return (
     <View style={{ marginTop: 24 }}>
       <Text style={{ paddingHorizontal: 20, fontSize: 18, fontWeight: '700', color: c.text }}>

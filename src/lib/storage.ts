@@ -25,6 +25,8 @@ export type PersistedState = {
   profileName?: string;
   /** Optional so a state saved before this field existed still loads. */
   aiConsentGiven?: boolean;
+  /** Optional so a state saved before this field existed still loads. */
+  recentSearches?: string[];
 };
 
 export async function loadState(): Promise<PersistedState | null> {
