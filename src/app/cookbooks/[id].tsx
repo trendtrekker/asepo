@@ -10,6 +10,7 @@ import { RecipeGridCard } from '@/components/recipe-card';
 import { RecipePickerSheet } from '@/components/recipe-picker-sheet';
 import { Button, Screen, ScrimButton, SheetHandle } from '@/components/ui';
 import { safeBack } from '@/lib/navigation';
+import { shareSignOff } from '@/lib/share-recipe';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 import { useToast } from '@/components/toast';
@@ -132,7 +133,18 @@ export default function CookbookDetail() {
                 } else if (label === 'Change cover') {
                   toast.show('Photo picker comes with the backend');
                 } else if (label === 'Share') {
-                  Share.share({ message: `Check out my “${cookbook.name}” cookbook on Asepo` }).catch(() => {});
+                  // A cookbook has no single recipe body to send, so this
+                  // lists what's in it and carries the same sign-off the
+                  // recipe share does.
+                  Share.share({
+                    message: [
+                      `“${cookbook.name}” — my cookbook on Asepo`,
+                      recipes.length ? recipes.map((r) => `• ${r.title}`).join('\n') : null,
+                      shareSignOff(),
+                    ]
+                      .filter(Boolean)
+                      .join('\n\n'),
+                  }).catch(() => toast.show('Sharing isn’t available here'));
                 } else if (label === 'Delete') {
                   setConfirmDelete(true);
                 }

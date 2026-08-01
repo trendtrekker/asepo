@@ -13,6 +13,7 @@ import { calLabel, timeLabel } from '@/data/sample';
 import { api, type HealthierRecipe, type NutritionEstimate } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
 import { convertMeasure } from '@/lib/quantity';
+import { recipeShareText } from '@/lib/share-recipe';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
 import { useAuth } from '@/store/auth-store';
@@ -581,7 +582,22 @@ export default function RecipeDetail() {
                 if (label === 'Add to cookbook') {
                   setCookbookSheetOpen(true);
                 } else if (label === 'Share') {
-                  Share.share({ message: `Check out “${recipe.title}” on Asepo` }).catch(() => {});
+                  // Sends what's actually on screen — the healthier swap if
+                  // it's showing, scaled to the chosen servings and unit
+                  // system — so the recipient gets the recipe the user is
+                  // looking at, not the one as originally saved.
+                  Share.share({
+                    message: recipeShareText(recipe, {
+                      ingredients: displayedIngredients,
+                      servings,
+                      factor,
+                      metric,
+                    }),
+                  }).catch(() => {
+                    // Previously swallowed, which made an unsupported platform
+                    // look like a dead button.
+                    toast.show('Sharing isn’t available here');
+                  });
                 }
               }}
               accessibilityRole="menuitem"
