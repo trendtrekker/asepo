@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Refresh } from '@/components/icons';
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { RecipeCarouselCard } from '@/components/recipe-card';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen } from '@/components/ui';

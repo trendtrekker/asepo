@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { useColors } from '@/theme/theme-context';
 
 /**

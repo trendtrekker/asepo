@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Animated, Easing, Image, Pressable, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
 
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { BRAND_NAVY } from '@/theme/tokens';
 
 /**

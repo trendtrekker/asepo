@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Animated, Easing, Image, ScrollView, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Image, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
 import { Button, Screen } from '@/components/ui';
 import { api, IMPORT_PIPELINE } from '@/lib/api';
 import { safeBack } from '@/lib/navigation';
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 

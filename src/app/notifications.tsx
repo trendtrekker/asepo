@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Animated, Easing, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Screen } from '@/components/ui';
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { useColors } from '@/theme/theme-context';
 
 /** Screen 6 — Notification permission primer. */
