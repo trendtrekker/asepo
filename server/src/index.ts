@@ -6,7 +6,7 @@ import express from 'express';
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
-import { storeImage, storeImageFromDataUrl, uploadDir } from './storage.js';
+import { storeImage, storeImageFromDataUrl } from './storage.js';
 import { supabaseAdmin } from './supabase-admin.js';
 
 /**
@@ -29,7 +29,6 @@ app.use(cors());
 // Photo imports send a base64-encoded image in the JSON body, well past the
 // default 1mb limit — a phone photo easily runs 3-8mb once base64-inflated.
 app.use(express.json({ limit: '12mb' }));
-app.use('/uploads', express.static(uploadDir, { maxAge: '30d', immutable: true }));
 
 /* ------------------------------------------------------------------ *
  * Job store
@@ -171,8 +170,8 @@ app.post('/import', (req, res) => {
           // us directly — nothing to fetch, just write the bytes we already have.
           recipe.imageUrl =
             source.kind === 'image'
-              ? await storeImageFromDataUrl(recipe.imageUrl, PUBLIC_URL)
-              : await storeImage(recipe.imageUrl, PUBLIC_URL);
+              ? await storeImageFromDataUrl(recipe.imageUrl)
+              : await storeImage(recipe.imageUrl);
         } catch {
           delete recipe.imageUrl;
         }
@@ -256,7 +255,7 @@ app.get('/images/:id', async (req, res) => {
 
     if (status.status === 'ready') {
       // Copy to our own storage before kie.ai expires the original.
-      job.url = await storeImage(status.urls[0], PUBLIC_URL);
+      job.url = await storeImage(status.urls[0]);
       job.status = 'ready';
     } else if (status.status === 'failed') {
       job.status = 'failed';
