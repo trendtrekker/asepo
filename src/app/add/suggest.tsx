@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api, ApiError, type MealSuggestion } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { Button, Screen } from '@/components/ui';
+import { importGate } from '@/lib/import-methods';
 import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -27,10 +28,24 @@ export default function MealSuggestion() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, setPendingImportSource } = useStore();
+  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+    useStore();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<MealSuggestion[] | null>(null);
+
+  // Catches a deep link straight to this screen, bypassing the sheet's own
+  // gating (sign-in required, one method for a free account). Asking for
+  // suggestions is free, but picking one to save is not, so this only
+  // blocks entry — the count limit is checked in pick() below instead. Waits
+  // out authLoading first — otherwise a real sign-in flickers to /email
+  // while the initial session check is still in flight.
+  useEffect(() => {
+    if (authLoading) return;
+    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed: 0, importLimit });
+    if (result === 'signin') router.replace('/email');
+    else if (result === 'locked') router.replace('/add/limit?reason=locked');
+  }, [authLoading, isSignedIn, unlockedMethod, isPro, importLimit, router]);
 
   const ask = async () => {
     const trimmed = prompt.trim();
@@ -51,7 +66,16 @@ export default function MealSuggestion() {
   };
 
   const pick = (suggestion: MealSuggestion) => {
-    if (!isPro && importsUsed >= importLimit) {
+    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    if (result === 'signin') {
+      router.replace('/email');
+      return;
+    }
+    if (result === 'locked') {
+      router.replace('/add/limit?reason=locked');
+      return;
+    }
+    if (result === 'count') {
       router.replace('/add/limit');
       return;
     }

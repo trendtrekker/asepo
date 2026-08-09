@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,12 +9,18 @@ import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
-/** Screen 11 — Free import limit reached. */
+/**
+ * Screen 11 — the Pro upsell sheet, reached two ways: the free monthly
+ * import count ran out (default), or a free account tapped an import method
+ * that isn't the one Asepo unlocked for them (?reason=locked).
+ */
 export default function ImportLimit() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { importLimit } = useStore();
+  const { reason } = useLocalSearchParams<{ reason?: string }>();
+  const locked = reason === 'locked';
 
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -41,10 +47,12 @@ export default function ImportLimit() {
         <SheetHandle />
 
         <Text style={{ fontSize: 21, fontWeight: '700', color: c.text }}>
-          You’ve used all {importLimit} free imports this month
+          {locked ? 'That import method is part of Asepo Pro' : `You’ve used all ${importLimit} free imports this month`}
         </Text>
         <Text style={{ marginTop: 6, fontSize: 14, color: c.textSec }}>
-          Upgrade to Pro for unlimited imports and more
+          {locked
+            ? 'Free accounts get one import method — upgrade for every method and unlimited imports'
+            : 'Upgrade to Pro for unlimited imports and more'}
         </Text>
 
         <View style={{ gap: 10, marginTop: 18 }}>

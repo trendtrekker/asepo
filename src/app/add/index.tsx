@@ -6,8 +6,9 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useToast } from '@/components/toast';
-import { SheetHandle } from '@/components/ui';
+import { Button, SheetHandle } from '@/components/ui';
 import { ADD_TILES } from '@/data/sample';
+import { importGate, type ImportMethodId } from '@/lib/import-methods';
 import { safeBack } from '@/lib/navigation';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -29,7 +30,8 @@ export default function AddRecipeSheet() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, setPendingImportSource } = useStore();
+  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+    useStore();
   const [url, setUrl] = useState('');
   const [detectedLink, setDetectedLink] = useState<string | null>(null);
 
@@ -50,11 +52,30 @@ export default function AddRecipeSheet() {
     };
   }, []);
 
-  const beginImport = (source: Parameters<typeof setPendingImportSource>[0]) => {
-    if (!isPro && importsUsed >= importLimit) {
-      router.replace('/add/limit');
-      return;
+  /**
+   * Every entry point funnels through this before doing anything — opening a
+   * picker, spending a network call, or leaving the sheet. Returns whether
+   * the caller may proceed; false means it already redirected.
+   */
+  const gate = (method: ImportMethodId): boolean => {
+    const result = importGate({ method, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    if (result === 'signin') {
+      router.push('/email');
+      return false;
     }
+    if (result === 'locked') {
+      router.push('/add/limit?reason=locked');
+      return false;
+    }
+    if (result === 'count') {
+      router.push('/add/limit');
+      return false;
+    }
+    return true;
+  };
+
+  const beginImport = (method: ImportMethodId, source: Parameters<typeof setPendingImportSource>[0]) => {
+    if (!gate(method)) return;
     setPendingImportSource(source);
     router.replace('/add/importing');
   };
@@ -65,7 +86,7 @@ export default function AddRecipeSheet() {
       toast.show('Paste a link first');
       return;
     }
-    beginImport({ kind: 'url', url: trimmed });
+    beginImport('url', { kind: 'url', url: trimmed });
   };
 
   /** The single field does double duty: paste when empty, submit when full. */
@@ -83,6 +104,9 @@ export default function AddRecipeSheet() {
   };
 
   const pickImage = async (from: 'camera' | 'library') => {
+    const method: ImportMethodId = from === 'camera' ? 'scan' : 'library';
+    if (!gate(method)) return;
+
     const permission =
       from === 'camera'
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -106,10 +130,12 @@ export default function AddRecipeSheet() {
 
     const asset = result.assets[0];
     const mime = asset.mimeType ?? 'image/jpeg';
-    beginImport({ kind: 'image', uri: `data:${mime};base64,${asset.base64}` });
+    beginImport(method, { kind: 'image', uri: `data:${mime};base64,${asset.base64}` });
   };
 
   const openTile = (id: string) => {
+    const method = id as ImportMethodId;
+    if (!gate(method)) return;
     switch (id) {
       case 'idea':
         router.push('/add/idea');
@@ -128,6 +154,8 @@ export default function AddRecipeSheet() {
         return;
     }
   };
+
+  const urlLocked = isSignedIn && unlockedMethod !== 'all' && unlockedMethod !== 'url';
 
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -156,117 +184,162 @@ export default function AddRecipeSheet() {
           Add a recipe
         </Text>
 
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          {detectedLink ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                backgroundColor: c.accentTint,
-                borderWidth: 1,
-                borderColor: c.accentTint2,
-                borderRadius: 14,
-                paddingVertical: 12,
-                paddingHorizontal: 14,
-                marginBottom: 14,
-              }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />
-              <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: c.text }} numberOfLines={1}>
-                Recipe link detected — import?
-              </Text>
-              <Pressable
-                onPress={() => importUrl(detectedLink)}
-                accessibilityRole="button"
-                style={{
-                  backgroundColor: c.accent,
-                  borderRadius: 10,
-                  paddingVertical: 7,
-                  paddingHorizontal: 12,
-                }}>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Import</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              backgroundColor: c.inputBg,
-              borderWidth: 1,
-              borderColor: c.border,
-              borderRadius: 14,
-              paddingLeft: 16,
-              padding: 4,
-            }}>
-            <TextInput
-              value={url}
-              onChangeText={setUrl}
-              placeholder="Paste a TikTok, Instagram, or recipe link"
-              placeholderTextColor={c.textSec}
-              autoCapitalize="none"
-              keyboardType="url"
-              onSubmitEditing={() => importUrl(url)}
-              style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 12 }}
+        {authLoading ? (
+          // Avoids a flash of "Sign in" for someone who actually has a valid
+          // session — the initial Supabase session check hasn't resolved yet.
+          <View style={{ flex: 1 }} />
+        ) : !isSignedIn ? (
+          <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24, alignItems: 'center' }}>
+            <Text style={{ fontSize: 15, color: c.textSec, textAlign: 'center', lineHeight: 21 }}>
+              Sign in to import and save recipes — from a link, a photo, a dish name, or an AI
+              suggestion.
+            </Text>
+            <Button
+              title="Sign in"
+              onPress={() => router.push('/email')}
+              style={{ marginTop: 20, alignSelf: 'stretch' }}
             />
-            <Pressable
-              onPress={onFieldAction}
-              accessibilityRole="button"
-              style={{
-                backgroundColor: c.accent,
-                borderRadius: 10,
-                paddingVertical: 9,
-                paddingHorizontal: 16,
-              }}>
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                {url.trim() ? 'Import' : 'Paste'}
-              </Text>
-            </Pressable>
           </View>
-
-          <Text style={{ marginTop: 8, fontSize: 12.5, color: c.textSec }}>
-            Works with TikTok, Instagram, YouTube, Pinterest, and any recipe site
-          </Text>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{
-            padding: 20,
-            paddingBottom: insets.bottom + 24,
-          }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-            {ADD_TILES.map((tile) => (
-              <Pressable
-                key={tile.id}
-                onPress={() => openTile(tile.id)}
-                accessibilityRole="button"
-                style={{
-                  width: '47%',
-                  flexGrow: 1,
-                  gap: 12,
-                  paddingVertical: 18,
-                  paddingHorizontal: 16,
-                  borderRadius: 16,
-                  backgroundColor: c.chipBg,
-                }}>
+        ) : (
+          <>
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              {detectedLink ? (
                 <View
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 12,
-                    backgroundColor: c.surface,
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    gap: 10,
+                    backgroundColor: c.accentTint,
+                    borderWidth: 1,
+                    borderColor: c.accentTint2,
+                    borderRadius: 14,
+                    paddingVertical: 12,
+                    paddingHorizontal: 14,
+                    marginBottom: 14,
                   }}>
-                  <Text style={{ fontSize: 17, color: c.text }}>{TILE_ICONS[tile.icon]}</Text>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.accent }} />
+                  <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: c.text }} numberOfLines={1}>
+                    Recipe link detected — import?
+                  </Text>
+                  <Pressable
+                    onPress={() => importUrl(detectedLink)}
+                    accessibilityRole="button"
+                    style={{
+                      backgroundColor: c.accent,
+                      borderRadius: 10,
+                      paddingVertical: 7,
+                      paddingHorizontal: 12,
+                    }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Import</Text>
+                  </Pressable>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{tile.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
+              ) : null}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  backgroundColor: c.inputBg,
+                  borderWidth: 1,
+                  borderColor: c.border,
+                  borderRadius: 14,
+                  paddingLeft: 16,
+                  padding: 4,
+                  opacity: urlLocked ? 0.5 : 1,
+                }}>
+                <TextInput
+                  value={url}
+                  onChangeText={setUrl}
+                  placeholder="Paste a TikTok, Instagram, or recipe link"
+                  placeholderTextColor={c.textSec}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  onSubmitEditing={() => importUrl(url)}
+                  style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 12 }}
+                />
+                <Pressable
+                  onPress={urlLocked ? () => gate('url') : onFieldAction}
+                  accessibilityRole="button"
+                  style={{
+                    backgroundColor: c.accent,
+                    borderRadius: 10,
+                    paddingVertical: 9,
+                    paddingHorizontal: 16,
+                  }}>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                    {urlLocked ? 'Pro' : url.trim() ? 'Import' : 'Paste'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Text style={{ marginTop: 8, fontSize: 12.5, color: c.textSec }}>
+                {urlLocked
+                  ? 'Free accounts get one import method — this one is part of Asepo Pro'
+                  : 'Works with TikTok, Instagram, YouTube, Pinterest, and any recipe site'}
+              </Text>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={{
+                padding: 20,
+                paddingBottom: insets.bottom + 24,
+              }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {ADD_TILES.map((tile) => {
+                  const locked = unlockedMethod !== 'all' && unlockedMethod !== tile.id;
+                  return (
+                    <Pressable
+                      key={tile.id}
+                      onPress={() => openTile(tile.id)}
+                      accessibilityRole="button"
+                      style={{
+                        width: '47%',
+                        flexGrow: 1,
+                        gap: 12,
+                        paddingVertical: 18,
+                        paddingHorizontal: 16,
+                        borderRadius: 16,
+                        backgroundColor: c.chipBg,
+                        opacity: locked ? 0.55 : 1,
+                      }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}>
+                        <View
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 12,
+                            backgroundColor: c.surface,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                          <Text style={{ fontSize: 17, color: c.text }}>{TILE_ICONS[tile.icon]}</Text>
+                        </View>
+                        {locked ? (
+                          <View
+                            style={{
+                              paddingVertical: 3,
+                              paddingHorizontal: 7,
+                              borderRadius: 8,
+                              backgroundColor: c.accentTint,
+                            }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: c.accent }}>PRO</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{tile.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </>
+        )}
       </View>
     </View>
   );

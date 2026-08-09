@@ -18,6 +18,7 @@ import {
 } from '@/data/sample';
 import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
+import { pickUnlockedMethod, type ImportMethodId } from '@/lib/import-methods';
 import { reconcilePlanNotifications } from '@/lib/plan-notifications';
 import { clearState, loadState, saveState } from '@/lib/storage';
 import { hasRemoteData, pullRemoteState, pushLocalState } from '@/lib/sync';
@@ -172,6 +173,22 @@ type Store = {
   isPro: boolean;
   setPro: (v: boolean) => void;
 
+  /**
+   * "Add a recipe" is registered-only. Signed-in free accounts get exactly
+   * one import method — 'all' for Pro, null for a signed-out guest (nothing
+   * usable until they sign in).
+   */
+  isSignedIn: boolean;
+  unlockedMethod: ImportMethodId | 'all' | null;
+  /**
+   * True until the initial Supabase session check resolves. isSignedIn is
+   * false during this window even for someone with a valid session, so
+   * anything that redirects a signed-out user away must wait for this to
+   * clear first — otherwise a real sign-in flickers to a "sign in" screen on
+   * every cold load.
+   */
+  authLoading: boolean;
+
   /** Wipes local storage and reseeds — useful from Profile while developing. */
   resetEverything: () => void;
 
@@ -191,7 +208,7 @@ type Store = {
 const AppContext = createContext<Store | null>(null);
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [storedCookbooks, setStoredCookbooks] = useState<StoredCookbook[]>([]);
   const [recipesLoading, setRecipesLoading] = useState(true);
@@ -208,6 +225,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [profileName, setProfileName] = useState('');
   const [aiConsentGiven, setAiConsentGiven] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  const isSignedIn = Boolean(user);
+  const unlockedMethod = useMemo<ImportMethodId | 'all' | null>(() => {
+    if (!user) return null;
+    if (isPro) return 'all';
+    return pickUnlockedMethod(user.id);
+  }, [user, isPro]);
 
   /**
    * Search used to show four invented "recent searches" from sample data, so
@@ -500,10 +524,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       removeFromPlan: (id) => setPlan((entries) => entries.filter((e) => e.id !== id)),
 
       importsUsed,
-      importLimit: 5,
+      importLimit: 3,
       recordImport: () => setImportsUsed((n) => n + 1),
       isPro,
       setPro,
+      isSignedIn,
+      unlockedMethod,
+      authLoading,
 
       resetEverything: () => {
         clearState().then(() => {
@@ -545,6 +572,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       plan,
       importsUsed,
       isPro,
+      isSignedIn,
+      unlockedMethod,
+      authLoading,
       profileName,
       aiConsentGiven,
       recentSearches,
