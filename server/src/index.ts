@@ -3,6 +3,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 
+import { createAdminRouter } from './admin/routes.js';
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
@@ -18,6 +19,7 @@ import { supabaseAdmin } from './supabase-admin.js';
  *   POST /healthify      -> { ingredients, instructions, summary } — Pro only, bearer token required
  *   POST /nutrition      -> { calories, protein, carbs, fat } — Pro only, bearer token required
  *   DELETE /account      -> 204, bearer token required
+ *   /admin/*             -> server-rendered admin dashboard, password-gated
  */
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -57,6 +59,11 @@ type ImageJob = {
 
 const importJobs = new Map<string, ImportJob>();
 const imageJobs = new Map<string, ImageJob>();
+
+// Form posts (login, grant-Pro, delete buttons) — scoped to /admin only, the
+// rest of the API is JSON-only.
+app.use('/admin', express.urlencoded({ extended: true }));
+app.use('/admin', createAdminRouter({ importJobs, imageJobs }));
 
 const newId = () => Math.random().toString(36).slice(2, 12);
 
