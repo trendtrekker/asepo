@@ -17,6 +17,7 @@ const TILE_ICONS: Record<string, string> = {
   library: '▢',
   paste: '≡',
   write: '✎',
+  suggest: '✦',
 };
 
 /** A loose check — good enough to decide whether to offer the clipboard banner. */
@@ -115,6 +116,9 @@ export default function AddRecipeSheet() {
         return;
       case 'paste':
         router.push('/add/paste-text');
+        return;
+      case 'suggest':
+        router.push('/add/suggest');
         return;
       case 'scan':
         pickImage('camera');

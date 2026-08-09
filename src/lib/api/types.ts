@@ -92,6 +92,13 @@ export type NutritionEstimate = {
   fat: number;
 };
 
+/** A named dish suggested for a loose request ("what can I have for breakfast today?"). */
+export type MealSuggestion = {
+  title: string;
+  /** One short sentence on why it fits what was asked. */
+  description: string;
+};
+
 export interface RecipeApi {
   /** The user's saved library. */
   listRecipes(): Promise<Recipe[]>;
@@ -117,6 +124,13 @@ export interface RecipeApi {
 
   /** Estimates per-serving nutrition from the recipe's ingredients. Pro-only, same as above. */
   estimateNutrition(recipe: Recipe, accessToken: string | null): Promise<NutritionEstimate>;
+
+  /**
+   * Names a handful of specific dishes for a loose request ("what can I have
+   * for breakfast today?"). Free — picking one to save still goes through
+   * the normal 'idea' import, which is where the import limit applies.
+   */
+  suggestMeals(prompt: string): Promise<MealSuggestion[]>;
 }
 
 /** Steps shown while extracting. The backend should emit indices into this list. */

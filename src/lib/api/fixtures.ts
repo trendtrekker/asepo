@@ -5,6 +5,7 @@ import type {
   ImageTask,
   ImportProgress,
   ImportSource,
+  MealSuggestion,
   NutritionEstimate,
   RecipeApi,
 } from '@/lib/api/types';
@@ -64,5 +65,14 @@ export const fixtureApi: RecipeApi = {
 
   async estimateNutrition(): Promise<NutritionEstimate> {
     throw new Error('No API configured');
+  },
+
+  async suggestMeals(prompt: string): Promise<MealSuggestion[]> {
+    await sleep(600);
+    return [
+      { title: 'Greek Yogurt Parfait with Berries and Granola', description: `A quick, no-cook fit for "${prompt}".` },
+      { title: 'Veggie and Cheese Omelet', description: 'Protein-heavy and ready in ten minutes.' },
+      { title: 'Avocado Toast with a Fried Egg', description: 'Simple pantry staples, no recipe hunting needed.' },
+    ];
   },
 };

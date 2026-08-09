@@ -6,7 +6,7 @@ import express from 'express';
 import { createAdminRouter } from './admin/routes.js';
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
-import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError } from './llm.js';
+import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError, suggestMeals } from './llm.js';
 import { storeImage, storeImageFromDataUrl } from './storage.js';
 import { supabaseAdmin } from './supabase-admin.js';
 
@@ -14,6 +14,7 @@ import { supabaseAdmin } from './supabase-admin.js';
  * Asepo backend. Implements the contract the app expects in src/lib/api/http.ts:
  *   POST /import        -> { taskId }
  *   GET  /import/:id    -> { status, step, label, recipe?, error? }
+ *   POST /suggest-meals -> { suggestions: [{ title, description }] } — free, no import consumed
  *   POST /images        -> { taskId, status }
  *   GET  /images/:id    -> { taskId, status, url?, error? }
  *   POST /healthify      -> { ingredients, instructions, summary } — Pro only, bearer token required
@@ -215,6 +216,30 @@ app.get('/import/:id', (req, res) => {
     ...(job.recipe ? { recipe: job.recipe } : {}),
     ...(job.error ? { error: job.error } : {}),
   });
+});
+
+/**
+ * Names a handful of specific dishes for a loose request ("what can I have
+ * for breakfast today?"). Synchronous rather than a job like /import — the
+ * model call is short, and there's no source to fetch first. Free: it only
+ * names dishes, the import limit is enforced when one is actually turned
+ * into a saved recipe via the existing 'idea' import path.
+ */
+app.post('/suggest-meals', async (req, res) => {
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+  if (!prompt) return res.status(400).json({ error: 'Describe what you want to eat' });
+  if (!isLlmConfigured()) return res.status(503).json({ error: 'Meal suggestions are not configured' });
+
+  try {
+    const suggestions = await suggestMeals(prompt);
+    res.json({ suggestions });
+  } catch (e) {
+    if (e instanceof LlmError && e.userSafe) {
+      return res.status(422).json({ error: e.message });
+    }
+    console.error('[suggest-meals] failed —', e);
+    res.status(500).json({ error: 'Could not come up with suggestions right now. Try again.' });
+  }
 });
 
 /* ------------------------------------------------------------------ *

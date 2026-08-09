@@ -43,6 +43,12 @@ export type NutritionEstimate = {
   fat: number;
 };
 
+export type MealSuggestion = {
+  title: string;
+  /** One short sentence on why it fits what was asked. */
+  description: string;
+};
+
 export class LlmError extends Error {
   /**
    * True only for messages written to be read by whoever is holding the
@@ -219,6 +225,26 @@ Rules:
   round/generic-looking number — real recipes rarely land on exact multiples
   of 50.`;
 
+const SUGGEST_SYSTEM_PROMPT = `The user describes what kind of meal they want, often loosely — a meal
+type and time ("what can I have for breakfast today?"), a mood, an ingredient
+they have on hand, a cuisine, or a dietary constraint. Suggest specific,
+concrete dishes that fit — not categories or vague ideas.
+
+Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
+{
+  "suggestions": [{"title": string, "description": string}]
+}
+
+Rules:
+- Return exactly 5 suggestions, each a real, specific, nameable dish (e.g.
+  "Greek Yogurt Parfait with Berries and Granola", not "a healthy breakfast").
+- "description" is one short sentence (under 20 words) saying why it fits what
+  was asked, written plainly and concretely — not generic praise.
+- Vary the suggestions from each other — different main ingredients or
+  styles, not five variations on the same dish.
+- If the request names a time of day, a dietary need, or an ingredient, every
+  suggestion must actually fit it.`;
+
 /** Pulls the assistant's text out of whichever response shape came back. */
 function textFrom(body: any): string | undefined {
   // Responses API
@@ -385,6 +411,39 @@ export async function extractIdea(dishName: string): Promise<LlmRecipe> {
   const { path, body } = buildRequest(protocol, model, IDEA_SYSTEM_PROMPT, `Dish: ${dishName.slice(0, 200)}`);
   const payload = await callModel(baseUrl, apiKey, path, body);
   return toLlmRecipe(textFrom(payload), payload, dishName);
+}
+
+/**
+ * Suggests a handful of specific dishes for a loose request ("what can I
+ * have for breakfast today?"). Picking one hands its title to extractIdea to
+ * write the full recipe — this step only names dishes, it doesn't write them.
+ */
+export async function suggestMeals(prompt: string): Promise<MealSuggestion[]> {
+  const { baseUrl, model, protocol, apiKey } = config();
+  if (!apiKey) throw new LlmError('No LLM API key configured');
+
+  const { path, body } = buildRequest(protocol, model, SUGGEST_SYSTEM_PROMPT, prompt.slice(0, 500));
+  const payload = await callModel(baseUrl, apiKey, path, body);
+  const content = textFrom(payload);
+  if (!content) {
+    throw new LlmError(payload?.error?.message ?? payload?.msg ?? 'The language model returned nothing');
+  }
+
+  const parsed = parseJsonReply(content);
+  const suggestions: MealSuggestion[] = Array.isArray(parsed.suggestions)
+    ? parsed.suggestions
+        .map((s: any) => ({
+          title: String(s?.title ?? '').trim(),
+          description: String(s?.description ?? '').trim(),
+        }))
+        .filter((s: MealSuggestion) => s.title)
+    : [];
+
+  if (!suggestions.length) {
+    throw new LlmError('Could not come up with suggestions for that', true);
+  }
+
+  return suggestions;
 }
 
 /** Rewrites a recipe's ingredients and steps to be healthier. Pro-only feature. */

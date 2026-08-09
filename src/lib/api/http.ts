@@ -5,6 +5,7 @@ import type {
   ImageTask,
   ImportProgress,
   ImportSource,
+  MealSuggestion,
   NutritionEstimate,
   RecipeApi,
 } from '@/lib/api/types';
@@ -195,6 +196,14 @@ export function createHttpApi(baseUrl: string): RecipeApi {
           servings: recipe.servings,
         }),
       });
+    },
+
+    async suggestMeals(prompt: string) {
+      const { suggestions } = await request<{ suggestions: MealSuggestion[] }>(base, '/suggest-meals', {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
+      });
+      return suggestions;
     },
   };
 }
