@@ -39,6 +39,7 @@ function RootNavigator() {
         />
         <Stack.Screen name="add/paste-text" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add/idea" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add/suggest" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add/importing" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add/review" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add/failed" options={{ presentation: 'modal' }} />
