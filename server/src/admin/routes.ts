@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import { Router } from 'express';
 
 import { isLlmConfigured } from '../llm.js';
@@ -211,6 +213,9 @@ export function createAdminRouter(deps: {
 
     const body = `
       <p class="sub">Page ${pageNum} — ${users.length} account${users.length === 1 ? '' : 's'} on this page.</p>
+      <div style="margin-bottom:14px;">
+        <a class="btn" href="/admin/users/new">+ New user</a>
+      </div>
       <table>
         <thead><tr><th>Email</th><th>Plan</th><th>Imports used</th><th>Created</th><th>Last sign-in</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="5" class="empty">No users.</td></tr>'}</tbody>
@@ -221,6 +226,50 @@ export function createAdminRouter(deps: {
       </div>
     `;
     res.send(page({ title: 'Users', activeHref: '/admin/users', body }));
+  });
+
+  router.get('/users/new', (_req, res) => {
+    const suggestedPassword = crypto.randomBytes(9).toString('base64url');
+    const body = `
+      <p class="sub"><a href="/admin/users">← Back to users</a></p>
+      <form method="post" action="/admin/users/new" style="max-width:360px;">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Email</label>
+        <input class="search" style="width:100%;margin-bottom:14px;" type="email" name="email" required>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Temporary password</label>
+        <input class="search" style="width:100%;margin-bottom:14px;font-family:monospace;" type="text" name="password" value="${escapeHtml(suggestedPassword)}" required minlength="8">
+        <p class="panel-sub" style="margin-bottom:14px;">Created as a super user — Pro plan, unlimited imports, no confirmation email sent. Hand these credentials to whoever will use it.</p>
+        <button class="btn" type="submit">Create super user</button>
+      </form>
+    `;
+    res.send(page({ title: 'New user', activeHref: '/admin/users', body }));
+  });
+
+  router.post('/users/new', async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!email || password.length < 8) {
+      return res.status(400).send(page({
+        title: 'New user',
+        activeHref: '/admin/users',
+        body: `<p class="empty">Email and an 8+ character password are required. <a href="/admin/users/new">Try again</a></p>`,
+      }));
+    }
+
+    const { data, error } = await supabaseAdmin().auth.admin.createUser({ email, password, email_confirm: true });
+    if (error || !data.user) {
+      return res.status(400).send(page({
+        title: 'New user',
+        activeHref: '/admin/users',
+        body: `<p class="empty">Could not create user: ${escapeHtml(error?.message ?? 'unknown error')}. <a href="/admin/users/new">Try again</a></p>`,
+      }));
+    }
+
+    // The on_auth_user_created trigger has already inserted a profiles row by
+    // the time createUser() resolves, so this update is safe to run right away.
+    await supabaseAdmin().from('profiles').update({ is_pro: true } as never).eq('id', data.user.id);
+
+    res.redirect(`/admin/users/${data.user.id}?created=1`);
   });
 
   router.get('/users/:id', async (req, res) => {
@@ -266,7 +315,12 @@ export function createAdminRouter(deps: {
         </form>
       </div>
     `;
-    res.send(page({ title: user.email ?? 'User', activeHref: '/admin/users', body }));
+    res.send(page({
+      title: user.email ?? 'User',
+      activeHref: '/admin/users',
+      flash: req.query.created === '1' ? 'Super user created — Pro plan, unlimited imports.' : undefined,
+      body,
+    }));
   });
 
   router.post('/users/:id/pro', async (req, res) => {
