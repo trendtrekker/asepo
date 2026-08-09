@@ -5,6 +5,7 @@ import { getCredits } from '../kie.js';
 import { supabaseAdmin } from '../supabase-admin.js';
 import { checkPassword, clearSessionCookie, requireAdmin, setSessionCookie } from './auth.js';
 import { escapeHtml, loginPage, page } from './layout.js';
+import { barChart, donutChart, DONUT_PALETTE, trendBadge } from './charts.js';
 
 type JobStatus = 'pending' | 'ready' | 'failed';
 type JobLike = { status: JobStatus };
@@ -19,6 +20,45 @@ function tally(jobs: Iterable<JobLike>) {
 }
 
 const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** % change between the last 7 days and the 7 days before that, for a trend badge. */
+function weekOverWeekPct(timestamps: number[]): number | null {
+  const now = Date.now();
+  const thisWeek = timestamps.filter((t) => t > now - 7 * DAY_MS).length;
+  const lastWeek = timestamps.filter((t) => t <= now - 7 * DAY_MS && t > now - 14 * DAY_MS).length;
+  if (lastWeek === 0) return thisWeek > 0 ? 100 : null;
+  return ((thisWeek - lastWeek) / lastWeek) * 100;
+}
+
+const dayLabel = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function dailyCounts(timestamps: number[], days: number) {
+  const now = Date.now();
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const buckets: { label: string; value: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const dayStart = startOfToday - i * DAY_MS;
+    const dayEnd = dayStart + DAY_MS;
+    buckets.push({
+      label: dayLabel(dayStart),
+      value: timestamps.filter((t) => t >= dayStart && t < dayEnd).length,
+    });
+  }
+  return buckets;
+}
+
+function topCounts(values: string[], top: number) {
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const head = sorted.slice(0, top);
+  const rest = sorted.slice(top).reduce((sum, [, n]) => sum + n, 0);
+  const result = head.map(([label, value]) => ({ label, value }));
+  if (rest > 0) result.push({ label: 'Other', value: rest });
+  return result;
+}
 
 /**
  * A factory rather than importing importJobs/imageJobs directly avoids a
@@ -54,28 +94,74 @@ export function createAdminRouter(deps: {
   // ---------------------------------------------------------------- dashboard
   router.get('/', async (_req, res) => {
     const kieConfigured = Boolean(process.env.KIE_API_KEY?.trim());
-    const [kieCredits, llmConfigured, usersResult, recipeCount] = await Promise.all([
+    const [kieCredits, llmConfigured, usersResult, recipesResult] = await Promise.all([
       kieConfigured ? getCredits() : Promise.resolve(null),
       Promise.resolve(isLlmConfigured()),
       supabaseAdmin().auth.admin.listUsers({ page: 1, perPage: 1000 }),
-      supabaseAdmin().from('recipes').select('id', { count: 'exact', head: true }),
+      supabaseAdmin().from('recipes').select('cuisine, added_at').returns<Pick<RecipeRow, 'cuisine' | 'added_at'>[]>(),
     ]);
 
     const importTally = tally(deps.importJobs.values());
     const imageTally = tally(deps.imageJobs.values());
-    const userCount = usersResult.data?.users.length ?? 0;
+    const users = usersResult.data?.users ?? [];
+    const userCount = users.length;
+    const recipes = recipesResult.data ?? [];
+    const recipeCount = recipes.length;
+
+    const userCreatedAt = users.map((u) => new Date(u.created_at).getTime());
+    const recipeAddedAt = recipes.map((r) => r.added_at);
+
+    const userTrend = trendBadge(weekOverWeekPct(userCreatedAt));
+    const recipeTrend = trendBadge(weekOverWeekPct(recipeAddedAt));
+
+    const dailyImports = dailyCounts(recipeAddedAt, 14);
+    const cuisineBreakdown = topCounts(
+      recipes.map((r) => (r.cuisine?.trim() ? r.cuisine.trim() : 'Uncategorized')),
+      6
+    );
+    const cuisineTotal = cuisineBreakdown.reduce((s, d) => s + d.value, 0) || 1;
 
     const statusPill = (ok: boolean, okText: string, badText: string) =>
       `<span class="pill ${ok ? 'ok' : 'bad'}">${ok ? okText : badText}</span>`;
 
+    const statCard = (icon: string, value: string | number, label: string, trend = '') => `
+      <div class="card">
+        <div class="card-top"><span class="card-icon">${icon}</span>${label}</div>
+        <div class="value-row"><span class="value">${value}</span>${trend}</div>
+      </div>`;
+
+    const legend = cuisineBreakdown
+      .map((d, i) => `
+        <li>
+          <span class="name"><span class="swatch" style="background:${DONUT_PALETTE[i % DONUT_PALETTE.length]}"></span>${escapeHtml(d.label)}</span>
+          <span class="pct">${Math.round((d.value / cuisineTotal) * 100)}%</span>
+        </li>`)
+      .join('');
+
     const body = `
       <p class="sub">Live server & account status.</p>
       <div class="cards">
-        <div class="card"><div class="value">${userCount}${userCount === 1000 ? '+' : ''}</div><div class="label">Total users</div></div>
-        <div class="card"><div class="value">${recipeCount.count ?? '—'}</div><div class="label">Total recipes (all users)</div></div>
-        <div class="card"><div class="value">${kieCredits ?? '—'}</div><div class="label">kie.ai credits remaining</div></div>
-        <div class="card"><div class="value">${statusPill(kieConfigured, 'Configured', 'Not set')}</div><div class="label">kie.ai API key</div></div>
-        <div class="card"><div class="value">${statusPill(llmConfigured, 'Configured', 'Not set')}</div><div class="label">LLM (healthify/nutrition)</div></div>
+        ${statCard('◔', `${userCount}${userCount === 1000 ? '+' : ''}`, 'Total users', userTrend)}
+        ${statCard('▤', recipeCount, 'Total recipes (all users)', recipeTrend)}
+        ${statCard('◆', kieCredits ?? '—', 'kie.ai credits remaining')}
+        ${statCard('⚙', statusPill(kieConfigured, 'Configured', 'Not set'), 'kie.ai API key')}
+        ${statCard('⚙', statusPill(llmConfigured, 'Configured', 'Not set'), 'LLM (healthify/nutrition)')}
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <h2>Recipes imported</h2>
+          <p class="panel-sub">Last 14 days, all users</p>
+          ${barChart(dailyImports)}
+        </div>
+        <div class="panel">
+          <h2>Recipes by cuisine</h2>
+          <p class="panel-sub">Top 6 + other</p>
+          <div class="donut-row">
+            ${cuisineBreakdown.length ? donutChart(cuisineBreakdown) : '<span class="empty">No recipes yet.</span>'}
+            <ul class="legend">${legend}</ul>
+          </div>
+        </div>
       </div>
 
       <h1 style="font-size:16px">Import jobs (last hour, in-memory)</h1>

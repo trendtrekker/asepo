@@ -1,9 +1,9 @@
 /** Shared HTML shell for every /admin page — no view engine, just template literals. */
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/users', label: 'Users' },
-  { href: '/admin/recipes', label: 'Recipes' },
+  { href: '/admin', label: 'Dashboard', icon: '▦' },
+  { href: '/admin/users', label: 'Users', icon: '◔' },
+  { href: '/admin/recipes', label: 'Recipes', icon: '▤' },
 ];
 
 export function escapeHtml(s: unknown): string {
@@ -14,7 +14,9 @@ export function escapeHtml(s: unknown): string {
 
 export function page(opts: { title: string; activeHref?: string; body: string; flash?: string }): string {
   const nav = NAV_ITEMS.map(
-    (item) => `<a href="${item.href}" class="nav-link${opts.activeHref === item.href ? ' active' : ''}">${item.label}</a>`
+    (item) => `<a href="${item.href}" class="nav-link${opts.activeHref === item.href ? ' active' : ''}">
+      <span class="nav-icon">${item.icon}</span>${item.label}
+    </a>`
   ).join('');
 
   return `<!doctype html>
@@ -27,22 +29,50 @@ export function page(opts: { title: string; activeHref?: string; body: string; f
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #F7F5F2; color: #1B2C43; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #1B2C43; color: #fff; }
-  header .brand { font-weight: 700; letter-spacing: 1px; }
-  nav { display: flex; gap: 20px; }
-  .nav-link { color: #CADCFC; text-decoration: none; font-size: 14px; padding: 6px 0; }
-  .nav-link.active, .nav-link:hover { color: #fff; border-bottom: 2px solid #C2410C; }
+
+  .shell { display: flex; min-height: 100vh; }
+
+  .sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #E2DCD3; display: flex; flex-direction: column; padding: 20px 14px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 6px 10px 22px; font-weight: 700; letter-spacing: 0.5px; font-size: 15px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: #1B2C43; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+
+  .nav-link { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 8px; color: #56606F; text-decoration: none; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; color: #9BA3AF; }
+  .nav-link.active { background: #FBEDE6; color: #C2410C; }
+  .nav-link.active .nav-icon { color: #C2410C; }
+  .nav-link:hover:not(.active) { background: #F7F5F2; }
+
+  .sidebar-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid #E2DCD3; }
   form.logout { margin: 0; }
-  form.logout button { background: none; border: none; color: #CADCFC; font-size: 14px; cursor: pointer; padding: 0; }
-  form.logout button:hover { color: #fff; }
-  main { max-width: 1080px; margin: 0 auto; padding: 28px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  .sub { color: #6B7280; font-size: 14px; margin: 0 0 24px; }
+  form.logout button { width: 100%; display: flex; align-items: center; gap: 11px; background: none; border: none; color: #56606F; font-size: 14px; font-weight: 500; cursor: pointer; padding: 9px 12px; border-radius: 8px; text-align: left; font-family: inherit; }
+  form.logout button:hover { background: #F7F5F2; color: #1B2C43; }
+
+  main { flex: 1; padding: 30px 36px; max-width: 1180px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #6B7280; font-size: 14px; margin: 0 0 22px; }
   .flash { background: #EFEBE4; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; font-size: 14px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
-  .card { background: #fff; border: 1px solid #E2DCD3; border-radius: 10px; padding: 16px; }
-  .card .value { font-size: 26px; font-weight: 700; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #E2DCD3; border-radius: 12px; padding: 16px; }
+  .card .card-top { display: flex; align-items: center; gap: 8px; color: #6B7280; font-size: 12.5px; margin-bottom: 10px; }
+  .card .card-icon { width: 26px; height: 26px; border-radius: 7px; background: #FBEDE6; color: #C2410C; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .card .value-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .card .value { font-size: 24px; font-weight: 700; }
   .card .label { font-size: 12px; color: #6B7280; margin-top: 2px; }
+  .trend { font-size: 11.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+
+  .panels { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 24px; align-items: stretch; }
+  .panel { background: #fff; border: 1px solid #E2DCD3; border-radius: 12px; padding: 18px 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .panel .panel-sub { font-size: 12px; color: #6B7280; margin: 0 0 14px; }
+  .donut-row { display: flex; align-items: center; gap: 20px; }
+  .legend { list-style: none; margin: 0; padding: 0; font-size: 13px; flex: 1; }
+  .legend li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #F1EFEA; }
+  .legend li:last-child { border-bottom: none; }
+  .legend .swatch { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+  .legend .name { display: flex; align-items: center; color: #1B2C43; }
+  .legend .pct { color: #6B7280; font-weight: 600; }
+
   table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #E2DCD3; border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #E2DCD3; font-size: 14px; }
   th { background: #EFEBE4; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: #6B7280; }
@@ -61,21 +91,29 @@ export function page(opts: { title: string; activeHref?: string; body: string; f
   .pill.warn { background: #FEF3C7; color: #92400E; }
   .pill.bad { background: #FEE2E2; color: #991B1B; }
   .empty { color: #6B7280; font-size: 14px; padding: 20px 0; }
+
+  @media (max-width: 860px) {
+    .panels { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">ASEPO ADMIN</div>
-  <nav>
-    ${nav}
-    <form class="logout" method="post" action="/admin/logout"><button type="submit">Log out</button></form>
-  </nav>
-</header>
-<main>
-  <h1>${escapeHtml(opts.title)}</h1>
-  ${opts.flash ? `<div class="flash">${escapeHtml(opts.flash)}</div>` : ''}
-  ${opts.body}
-</main>
+<div class="shell">
+  <div class="sidebar">
+    <div class="brand"><span class="mark">A</span>Asepo Admin</div>
+    <nav>${nav}</nav>
+    <div class="sidebar-footer">
+      <form class="logout" method="post" action="/admin/logout">
+        <button type="submit"><span class="nav-icon">⏻</span>Log out</button>
+      </form>
+    </div>
+  </div>
+  <main>
+    <h1>${escapeHtml(opts.title)}</h1>
+    ${opts.flash ? `<div class="flash">${escapeHtml(opts.flash)}</div>` : ''}
+    ${opts.body}
+  </main>
+</div>
 </body>
 </html>`;
 }
