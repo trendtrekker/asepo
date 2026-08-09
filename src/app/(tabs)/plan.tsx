@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,9 +16,27 @@ export default function Plan() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { plan, getRecipe, removeFromPlan } = useStore();
+  // Coming from "Your week" on Home with a specific day tapped — land on
+  // that day's week and scroll straight to it, rather than always opening
+  // on today's date regardless of what was tapped.
+  const params = useLocalSearchParams<{ date?: string }>();
+  const targetDate = typeof params.date === 'string' && params.date ? params.date : todayIso();
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(todayIso()));
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(targetDate));
   const today = todayIso();
+  const scrollRef = useRef<ScrollView>(null);
+  const dayOffsets = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    setWeekStart(startOfWeek(targetDate));
+  }, [targetDate]);
+
+  useEffect(() => {
+    const y = dayOffsets.current[targetDate];
+    if (y === undefined) return;
+    const t = setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true }), 50);
+    return () => clearTimeout(t);
+  }, [targetDate, weekStart]);
 
   const weekEntries = plan.filter((e) => e.date >= weekStart && e.date <= addDays(weekStart, 6));
   const total = weekEntries.length;
@@ -51,12 +69,26 @@ export default function Plan() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 100 }}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 100 }}>
         {WEEK_DAYS.map((day, dayIndex) => {
           const dayIso = addDays(weekStart, dayIndex);
           const entries = plan.filter((e) => e.date === dayIso);
+          const isTarget = dayIso === targetDate;
           return (
-            <View key={day} style={{ marginBottom: 22 }}>
+            <View
+              key={day}
+              onLayout={(e) => {
+                dayOffsets.current[dayIso] = e.nativeEvent.layout.y;
+              }}
+              style={{
+                marginBottom: 22,
+                borderRadius: 16,
+                padding: isTarget && targetDate !== today ? 10 : 0,
+                borderWidth: isTarget && targetDate !== today ? 1.5 : 0,
+                borderColor: c.accent,
+              }}>
               <View
                 style={{
                   flexDirection: 'row',

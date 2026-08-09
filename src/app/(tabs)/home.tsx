@@ -190,7 +190,7 @@ export default function Home() {
               return (
                 <Pressable
                   key={iso}
-                  onPress={() => router.push('/(tabs)/plan')}
+                  onPress={() => router.push({ pathname: '/(tabs)/plan', params: { date: iso } })}
                   accessibilityRole="button"
                   accessibilityLabel={`${weekdayShort(iso)} ${fromIso(iso).getDate()}`}
                   style={{
