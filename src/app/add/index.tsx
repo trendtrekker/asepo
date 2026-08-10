@@ -35,6 +35,20 @@ export default function AddRecipeSheet() {
   const [url, setUrl] = useState('');
   const [detectedLink, setDetectedLink] = useState<string | null>(null);
 
+  /**
+   * The sheet is a transparentModal that fades in over the screen that opened
+   * it — the "+" FAB stays mounted underneath while it fades, rather than
+   * being replaced outright. A fast double-tap on the FAB can land its
+   * second tap on whatever the sheet has just rendered at that same spot
+   * (e.g. a tile), sending someone straight into an option they never meant
+   * to pick. Ignoring taps for a beat after mount closes that window.
+   */
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 400);
+    return () => clearTimeout(t);
+  }, []);
+
   // Real clipboard check on open — the old version always showed the banner,
   // whether or not there was actually a link on the clipboard.
   useEffect(() => {
@@ -58,6 +72,7 @@ export default function AddRecipeSheet() {
    * the caller may proceed; false means it already redirected.
    */
   const gate = (method: ImportMethodId): boolean => {
+    if (!ready) return false;
     const result = importGate({ method, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
     if (result === 'signin') {
       router.push('/email');
