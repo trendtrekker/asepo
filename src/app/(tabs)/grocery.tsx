@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Check } from '@/components/icons';
 import { EmptyIllustration, Screen } from '@/components/ui';
-import { groupByMeal } from '@/lib/grocery';
+import { groupByMeal, type GroceryItem } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -90,46 +90,17 @@ export default function Grocery() {
                 color: c.textSec,
                 textTransform: 'uppercase',
                 letterSpacing: 0.6,
-                marginBottom: 6,
+                marginBottom: 8,
               }}>
               {section.label} · {section.items.length}
             </Text>
             {section.items.map((item) => (
-              <Pressable
+              <GroceryRow
                 key={`${section.label}-${item.id}`}
-                onPress={() => toggleGroceryItem(item.id)}
-                onLongPress={() => removeGroceryItem(item.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: item.checked }}
-                accessibilityHint="Long press to remove"
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 12,
-                  paddingVertical: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: c.border,
-                }}>
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    borderWidth: 1.5,
-                    borderColor: c.border,
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, color: c.text }}>{item.name}</Text>
-                  {/* The section header already says which recipe this is for —
-                      only worth repeating when it's shared with another meal too. */}
-                  {item.sources.length > 1 ? (
-                    <Text style={{ fontSize: 11.5, color: c.textSec, marginTop: 2 }}>
-                      {item.sources.join(' · ')}
-                    </Text>
-                  ) : null}
-                </View>
-              </Pressable>
+                item={item}
+                onToggle={() => toggleGroceryItem(item.id)}
+                onRemove={() => removeGroceryItem(item.id)}
+              />
             ))}
           </View>
         ))}
@@ -143,44 +114,12 @@ export default function Grocery() {
                 color: c.textSec,
                 textTransform: 'uppercase',
                 letterSpacing: 0.6,
-                marginBottom: 6,
+                marginBottom: 8,
               }}>
               Checked · {checked.length}
             </Text>
             {checked.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => toggleGroceryItem(item.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: true }}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 12,
-                  paddingVertical: 10,
-                  opacity: 0.55,
-                }}>
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    backgroundColor: c.accent,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                  <Check color="#fff" size={11} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: 15,
-                    color: c.textSec,
-                    textDecorationLine: 'line-through',
-                  }}>
-                  {item.name}
-                </Text>
-              </Pressable>
+              <GroceryRow key={item.id} item={item} onToggle={() => toggleGroceryItem(item.id)} faded />
             ))}
           </View>
         ) : null}
@@ -228,5 +167,94 @@ export default function Grocery() {
         </Pressable>
       </View>
     </Screen>
+  );
+}
+
+/**
+ * One list item as a card: a letter-avatar bubble standing in for a category
+ * icon (the data has no category to draw a real one from), qty/name in the
+ * middle, and the checkbox moved to the trailing edge.
+ */
+function GroceryRow({
+  item,
+  onToggle,
+  onRemove,
+  faded,
+}: {
+  item: GroceryItem;
+  onToggle: () => void;
+  onRemove?: () => void;
+  faded?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      onPress={onToggle}
+      onLongPress={onRemove}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: item.checked }}
+      accessibilityHint={onRemove ? 'Long press to remove' : undefined}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: c.surface,
+        borderWidth: 1,
+        borderColor: c.border,
+        borderRadius: 16,
+        padding: 10,
+        marginBottom: 8,
+        opacity: faded ? 0.55 : 1,
+      }}>
+      <View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: c.accentTint,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: c.accent }}>
+          {item.name.trim().charAt(0).toUpperCase() || '?'}
+        </Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: '500',
+            color: faded ? c.textSec : c.text,
+            textDecorationLine: faded ? 'line-through' : 'none',
+          }}>
+          {item.name}
+        </Text>
+        {/* The section header already says which recipe this is for —
+            only worth repeating when it's shared with another meal too. */}
+        {!faded && item.sources.length > 1 ? (
+          <Text style={{ fontSize: 11.5, color: c.textSec, marginTop: 2 }}>
+            {item.sources.join(' · ')}
+          </Text>
+        ) : null}
+      </View>
+      {item.qty ? (
+        <Text style={{ fontSize: 12.5, color: c.textSec, marginRight: 2 }}>
+          {item.qty} {item.unit}
+        </Text>
+      ) : null}
+      <View
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: item.checked ? c.accent : 'transparent',
+          borderWidth: item.checked ? 0 : 1.5,
+          borderColor: c.border,
+        }}>
+        {item.checked ? <Check color="#fff" size={12} /> : null}
+      </View>
+    </Pressable>
   );
 }
