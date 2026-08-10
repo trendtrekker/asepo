@@ -926,16 +926,6 @@ export const SUGGESTED_SEARCHES = [
 ];
 
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-/** Which meal slots are filled per day — drives the dots on the Home week strip. */
-export const MEAL_FILL = [
-  [1, 1, 1],
-  [1, 1, 0],
-  [1, 0, 1],
-  [1, 1, 1],
-  [1, 0, 0],
-  [0, 0, 0],
-  [0, 0, 0],
-];
 
 /** The import review screen still edits this fixture. */
 export const SAMPLE_INGREDIENTS = RECIPE_SAMPLES[0].ingredients;

@@ -8,7 +8,7 @@ import { useAnimatedValue } from '@/lib/use-animated-value';
 import { RecipeCarouselCard } from '@/components/recipe-card';
 import { RecipeImage } from '@/components/recipe-image';
 import { Button, Screen } from '@/components/ui';
-import { MEAL_FILL, timeLabel, type Recipe } from '@/data/sample';
+import { timeLabel, type Recipe } from '@/data/sample';
 import { addDays, fromIso, todayIso, weekdayShort } from '@/lib/dates';
 import { sortRecipes } from '@/lib/filter-recipes';
 import { MEAL_SLOTS, useStore, type MealSlot, type PlanEntry } from '@/store/app-store';
@@ -234,17 +234,20 @@ export default function Home() {
                     {fromIso(iso).getDate()}
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 2 }}>
-                    {MEAL_FILL[i].map((filled, j) => (
-                      <View
-                        key={j}
-                        style={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: 2,
-                          backgroundColor: filled ? c.accent : c.border,
-                        }}
-                      />
-                    ))}
+                    {MEAL_SLOTS.map((slot) => {
+                      const filled = plan.some((e) => e.date === iso && e.slot === slot);
+                      return (
+                        <View
+                          key={slot}
+                          style={{
+                            width: 4,
+                            height: 4,
+                            borderRadius: 2,
+                            backgroundColor: filled ? c.accent : c.border,
+                          }}
+                        />
+                      );
+                    })}
                   </View>
                 </Pressable>
               );
