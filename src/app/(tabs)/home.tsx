@@ -324,6 +324,15 @@ function HeroCarousel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A short, deliberate swipe often ends without triggering RN's "momentum"
+  // phase at all, so onMomentumScrollEnd alone left the dot stuck on the
+  // previous card. Tracking onScroll directly keeps the dot glued to
+  // whatever's actually on screen throughout the drag, not just at the end.
+  const updateActiveFromOffset = (x: number) => {
+    const index = Math.max(0, Math.min(cards.length - 1, Math.round(x / (cardWidth + gap))));
+    setActiveIndex((prev) => (prev === index ? prev : index));
+  };
+
   return (
     <View style={{ marginTop: 16 }}>
       <ScrollView
@@ -333,10 +342,10 @@ function HeroCarousel({
         snapToInterval={cardWidth + gap}
         decelerationRate="fast"
         contentContainerStyle={{ paddingHorizontal: 20, gap }}
-        onMomentumScrollEnd={(e) => {
-          const index = Math.round(e.nativeEvent.contentOffset.x / (cardWidth + gap));
-          setActiveIndex(Math.max(0, Math.min(cards.length - 1, index)));
-        }}>
+        onScroll={(e) => updateActiveFromOffset(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={16}
+        onScrollEndDrag={(e) => updateActiveFromOffset(e.nativeEvent.contentOffset.x)}
+        onMomentumScrollEnd={(e) => updateActiveFromOffset(e.nativeEvent.contentOffset.x)}>
         {cards.map(({ entry, recipe }) => (
           <View
             key={entry.id}
