@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
-import { Pressable, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -11,6 +12,7 @@ import {
   PersonIcon,
   PlusIcon,
 } from '@/components/icons';
+import { useAnimatedValue } from '@/lib/use-animated-value';
 import { useColors } from '@/theme/theme-context';
 
 const ICONS: Record<string, (p: { color: string; size?: number }) => React.ReactElement> = {
@@ -34,6 +36,17 @@ function AsepoTabBar({ state, navigation }: BottomTabBarProps) {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // Fades the FAB in on first mount rather than having it pop in with the
+  // rest of the bar — the one element on this screen worth a beat of polish.
+  const fabOpacity = useAnimatedValue(0);
+  const fabTranslate = useAnimatedValue(10);
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fabOpacity, { toValue: 1, duration: 360, delay: 120, useNativeDriver: true }),
+      Animated.timing(fabTranslate, { toValue: 0, duration: 360, delay: 120, useNativeDriver: true }),
+    ]).start();
+  }, [fabOpacity, fabTranslate]);
 
   return (
     <View
@@ -76,32 +89,38 @@ function AsepoTabBar({ state, navigation }: BottomTabBarProps) {
       })}
 
       {/* Import FAB */}
-      <Pressable
-        onPress={() => router.push('/add')}
-        accessibilityRole="button"
-        accessibilityLabel="Add a recipe"
-        style={({ pressed }) => ({
+      <Animated.View
+        style={{
           position: 'absolute',
           // The bar is a row, so alignSelf centres vertically — offset from 50% instead.
           left: '50%',
           marginLeft: -28,
           // Floats clear of the bar so it never covers the middle tab.
           top: -70,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: c.accent,
-          alignItems: 'center',
-          justifyContent: 'center',
-          shadowColor: '#000',
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 6,
-          opacity: pressed ? 0.85 : 1,
-        })}>
-        <PlusIcon color="#fff" size={26} />
-      </Pressable>
+          opacity: fabOpacity,
+          transform: [{ translateY: fabTranslate }],
+        }}>
+        <Pressable
+          onPress={() => router.push('/add')}
+          accessibilityRole="button"
+          accessibilityLabel="Add a recipe"
+          style={({ pressed }) => ({
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: c.accent,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 6,
+            opacity: pressed ? 0.85 : 1,
+          })}>
+          <PlusIcon color="#fff" size={26} />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Check, ChevronLeft, Heart, Leaf, MoreHorizontal } from '@/components/icons';
+import { AnimatedCheckbox } from '@/components/animated-checkbox';
+import { ChevronLeft, Heart, Leaf, MoreHorizontal } from '@/components/icons';
 import { CookbookPickerSheet } from '@/components/cookbook-picker-sheet';
 import { RecipeImage } from '@/components/recipe-image';
 import { useToast } from '@/components/toast';
@@ -404,19 +405,7 @@ export default function RecipeDetail() {
                         {m.qty}
                         {m.unit ? ` ${m.unit}` : ''}
                       </Text>
-                      <View
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 12,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: on ? c.accent : 'transparent',
-                          borderWidth: on ? 0 : 1.5,
-                          borderColor: c.border,
-                        }}>
-                        {on ? <Check color="#fff" size={12} /> : null}
-                      </View>
+                      <AnimatedCheckbox checked={on} size={24} />
                     </Pressable>
                   );
                 })}

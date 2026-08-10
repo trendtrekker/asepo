@@ -18,6 +18,11 @@ function RootNavigator() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.bg },
+          // A consistent, slightly unhurried push for every screen that
+          // doesn't override it below — the RN default is a little abrupt,
+          // especially on Android.
+          animation: 'slide_from_right',
+          animationDuration: 260,
         }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
@@ -27,15 +32,15 @@ function RootNavigator() {
         {/* Import flow — presented over whatever screen launched it. */}
         <Stack.Screen
           name="add/index"
-          options={{ presentation: 'transparentModal', animation: 'fade' }}
+          options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 240 }}
         />
         <Stack.Screen
           name="add/limit"
-          options={{ presentation: 'transparentModal', animation: 'fade' }}
+          options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 240 }}
         />
         <Stack.Screen
           name="add/share-preview"
-          options={{ presentation: 'transparentModal', animation: 'fade' }}
+          options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 240 }}
         />
         <Stack.Screen name="add/paste-text" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add/idea" options={{ presentation: 'modal' }} />
@@ -47,12 +52,12 @@ function RootNavigator() {
 
         <Stack.Screen
           name="add-to-plan/[id]"
-          options={{ presentation: 'transparentModal', animation: 'fade' }}
+          options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 240 }}
         />
         <Stack.Screen name="edit-recipe/[id]" options={{ presentation: 'modal' }} />
 
         <Stack.Screen name="filters" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="search" options={{ animation: 'fade' }} />
+        <Stack.Screen name="search" options={{ animation: 'fade', animationDuration: 200 }} />
         <Stack.Screen name="cookbooks/new" options={{ presentation: 'modal' }} />
       </Stack>
     </>

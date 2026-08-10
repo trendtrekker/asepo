@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Check } from '@/components/icons';
+import { AnimatedCheckbox } from '@/components/animated-checkbox';
 import { EmptyIllustration, Screen } from '@/components/ui';
 import { groupByMeal, type GroceryItem } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
@@ -242,19 +242,7 @@ function GroceryRow({
           {item.qty} {item.unit}
         </Text>
       ) : null}
-      <View
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: item.checked ? c.accent : 'transparent',
-          borderWidth: item.checked ? 0 : 1.5,
-          borderColor: c.border,
-        }}>
-        {item.checked ? <Check color="#fff" size={12} /> : null}
-      </View>
+      <AnimatedCheckbox checked={item.checked} size={24} />
     </Pressable>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { RecipeImage } from '@/components/recipe-image';
 import { Screen } from '@/components/ui';
 import { timeLabel } from '@/data/sample';
@@ -145,7 +146,7 @@ export default function Plan() {
 
               <View style={{ flex: 1, paddingBottom: 22 }}>
                 {recipe && entry ? (
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
                     onLongPress={() => removeFromPlan(entry.id)}
                     accessibilityRole="button"
@@ -173,7 +174,7 @@ export default function Plan() {
                         {timeLabel(recipe)} · serves {entry.servings}
                       </Text>
                     </View>
-                  </Pressable>
+                  </AnimatedPressable>
                 ) : (
                   <View
                     style={{

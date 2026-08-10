@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FadeIn } from '@/components/fade-in';
 import { Refresh } from '@/components/icons';
 import { useAnimatedValue } from '@/lib/use-animated-value';
 import { RecipeCarouselCard } from '@/components/recipe-card';
@@ -170,38 +171,40 @@ export default function Home() {
         </View>
 
         {/* This meal, now */}
-        {heroCards.length > 0 ? (
-          <HeroCarousel cards={heroCards} initialIndex={Math.min(heroInitialIndex, heroCards.length - 1)} />
-        ) : (
-          <View
-            style={{
-              marginHorizontal: 20,
-              marginTop: 16,
-              minHeight: 150,
-              borderRadius: 20,
-              backgroundColor: c.chipBg,
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              paddingVertical: 20,
-            }}>
-            <Text style={{ fontSize: 14, color: c.textSec }}>
-              {recipesLoading
-                ? 'Loading your recipes…'
-                : allRecipes.length === 0
-                  ? 'No recipes yet'
-                  : 'Nothing planned yet'}
-            </Text>
-            {!recipesLoading && allRecipes.length > 0 ? (
-              <Button
-                title="Plan a meal"
-                variant="tinted"
-                height={40}
-                onPress={() => router.push('/(tabs)/plan')}
-              />
-            ) : null}
-          </View>
-        )}
+        <FadeIn>
+          {heroCards.length > 0 ? (
+            <HeroCarousel cards={heroCards} initialIndex={Math.min(heroInitialIndex, heroCards.length - 1)} />
+          ) : (
+            <View
+              style={{
+                marginHorizontal: 20,
+                marginTop: 16,
+                minHeight: 150,
+                borderRadius: 20,
+                backgroundColor: c.chipBg,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                paddingVertical: 20,
+              }}>
+              <Text style={{ fontSize: 14, color: c.textSec }}>
+                {recipesLoading
+                  ? 'Loading your recipes…'
+                  : allRecipes.length === 0
+                    ? 'No recipes yet'
+                    : 'Nothing planned yet'}
+              </Text>
+              {!recipesLoading && allRecipes.length > 0 ? (
+                <Button
+                  title="Plan a meal"
+                  variant="tinted"
+                  height={40}
+                  onPress={() => router.push('/(tabs)/plan')}
+                />
+              ) : null}
+            </View>
+          )}
+        </FadeIn>
 
         <Carousel title="Recently saved" recipes={recentlySaved} />
         <Carousel title="Cook it again" recipes={cookItAgain} />
@@ -282,8 +285,10 @@ function Carousel({ title, recipes }: { title: string; recipes: Recipe[] }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
-        {recipes.map((r) => (
-          <RecipeCarouselCard key={r.id} recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
+        {recipes.map((r, i) => (
+          <FadeIn key={r.id} delay={i * 40}>
+            <RecipeCarouselCard recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
+          </FadeIn>
         ))}
       </ScrollView>
     </View>
