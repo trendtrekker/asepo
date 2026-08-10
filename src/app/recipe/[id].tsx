@@ -364,22 +364,26 @@ export default function RecipeDetail() {
                         flexDirection: 'row',
                         alignItems: 'center',
                         gap: 12,
-                        paddingVertical: 12,
-                        borderBottomWidth: 1,
-                        borderBottomColor: c.border,
+                        backgroundColor: c.surface,
+                        borderWidth: 1,
+                        borderColor: c.border,
+                        borderRadius: 16,
+                        padding: 10,
+                        marginBottom: 8,
+                        opacity: on ? 0.7 : 1,
                       }}>
                       <View
                         style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 11,
-                          borderWidth: 1.5,
-                          borderColor: on ? c.accent : c.border,
-                          backgroundColor: on ? c.accent : 'transparent',
+                          width: 38,
+                          height: 38,
+                          borderRadius: 19,
+                          backgroundColor: c.accentTint,
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}>
-                        {on ? <Check color="#fff" size={11} /> : null}
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: c.accent }}>
+                          {ing.name.trim().charAt(0).toUpperCase() || '?'}
+                        </Text>
                       </View>
                       <Text
                         style={{
@@ -388,17 +392,31 @@ export default function RecipeDetail() {
                           color: healthierColor ?? (on ? c.textSec : c.text),
                           textDecorationLine: on ? 'line-through' : 'none',
                         }}>
-                        <Text
-                          style={{
-                            fontWeight: '700',
-                            color: healthierColor ?? (scaled && !on ? c.accent : undefined),
-                          }}>
-                          {m.qty}
-                          {m.unit ? ` ${m.unit}` : ''}
-                        </Text>
-                        {m.qty || m.unit ? '  ' : ''}
                         {ing.name}
                       </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: '700',
+                          color: healthierColor ?? (scaled && !on ? c.accent : c.textSec),
+                          marginRight: 2,
+                        }}>
+                        {m.qty}
+                        {m.unit ? ` ${m.unit}` : ''}
+                      </Text>
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: on ? c.accent : 'transparent',
+                          borderWidth: on ? 0 : 1.5,
+                          borderColor: c.border,
+                        }}>
+                        {on ? <Check color="#fff" size={12} /> : null}
+                      </View>
                     </Pressable>
                   );
                 })}
@@ -407,26 +425,53 @@ export default function RecipeDetail() {
           ) : null}
 
           {tab === 'Steps' ? (
-            <View style={{ gap: 14, marginTop: 18 }}>
+            <View style={{ marginTop: 18 }}>
               {recipe.instructions.map((step, i) => {
                 const timer = extractTimer(step);
+                const isLast = i === recipe.instructions.length - 1;
                 return (
-                  <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
-                    <View
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 13,
-                        backgroundColor: c.accentTint2,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: c.accent }}>
-                        {i + 1}
+                  <View key={i} style={{ flexDirection: 'row' }}>
+                    {/* Timeline rail — same left-rail language as Plan, with
+                        the step number standing in for a slot name. */}
+                    <View style={{ width: 46, alignItems: 'flex-end' }}>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: '700',
+                          color: c.textSec,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          marginTop: 14,
+                        }}>
+                        Step {i + 1}
                       </Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15.5, lineHeight: 23, color: c.text }}>{step}</Text>
+                    <View style={{ alignItems: 'center', marginHorizontal: 12 }}>
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: c.accent,
+                          marginTop: 16,
+                        }}
+                      />
+                      {!isLast ? (
+                        <View style={{ width: 1, flex: 1, backgroundColor: c.border, marginTop: 4 }} />
+                      ) : null}
+                    </View>
+
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: c.surface,
+                        borderWidth: 1,
+                        borderColor: c.border,
+                        borderRadius: 16,
+                        padding: 12,
+                        marginBottom: 16,
+                      }}>
+                      <Text style={{ fontSize: 15, lineHeight: 22, color: c.text }}>{step}</Text>
                       {timer ? (
                         <Pressable
                           onPress={() => router.push({ pathname: '/cook/[id]', params: { id: recipe.id, step: i } })}
@@ -503,7 +548,7 @@ export default function RecipeDetail() {
                     </Text>
                   </View>
 
-                  <View style={{ marginTop: 16, gap: 14 }}>
+                  <View style={{ marginTop: 16, gap: 8 }}>
                     <MacroBar
                       label="Protein"
                       grams={nutrition.protein}
@@ -801,17 +846,40 @@ function MacroBar({
   const share = total ? Math.min(1, (grams * kcalPerGram) / total) : 0;
 
   return (
-    <View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{label}</Text>
-        <Text style={{ fontSize: 14, color: c.textSec }}>
-          {grams} g · {Math.round(share * 100)}%
-        </Text>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: c.surface,
+        borderWidth: 1,
+        borderColor: c.border,
+        borderRadius: 16,
+        padding: 10,
+      }}>
+      <View
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          backgroundColor: c.accentTint,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: c.accent }}>{label.charAt(0)}</Text>
       </View>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: c.chipBg, overflow: 'hidden' }}>
-        <View
-          style={{ width: `${share * 100}%`, height: '100%', borderRadius: 4, backgroundColor: c.accent }}
-        />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{label}</Text>
+          <Text style={{ fontSize: 13, color: c.textSec }}>
+            {grams} g · {Math.round(share * 100)}%
+          </Text>
+        </View>
+        <View style={{ height: 8, borderRadius: 4, backgroundColor: c.chipBg, overflow: 'hidden' }}>
+          <View
+            style={{ width: `${share * 100}%`, height: '100%', borderRadius: 4, backgroundColor: c.accent }}
+          />
+        </View>
       </View>
     </View>
   );
