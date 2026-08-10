@@ -1,14 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
+import { Trash } from '@/components/icons';
 import { RecipeImage } from '@/components/recipe-image';
 import { Screen } from '@/components/ui';
-import { timeLabel } from '@/data/sample';
+import { timeLabel, type Recipe } from '@/data/sample';
 import { addDays, formatWeekRange, fromIso, startOfWeek, todayIso, weekdayShort } from '@/lib/dates';
-import { MEAL_SLOTS, useStore } from '@/store/app-store';
+import { MEAL_SLOTS, useStore, type PlanEntry } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
 /**
@@ -118,14 +120,20 @@ export default function Plan() {
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 100 }}>
         {MEAL_SLOTS.map((slot, i) => {
-          const entry = dayEntries.find((e) => e.slot === slot);
-          const recipe = entry ? getRecipe(entry.recipeId) : undefined;
+          // A slot can hold more than one meal — filter, not find, and list
+          // every entry with a recipe that still resolves.
+          const entries = dayEntries
+            .filter((e) => e.slot === slot)
+            .map((entry) => ({ entry, recipe: getRecipe(entry.recipeId) }))
+            .filter((x): x is { entry: PlanEntry; recipe: Recipe } => Boolean(x.recipe));
           const isLast = i === MEAL_SLOTS.length - 1;
 
           return (
             <View key={slot} style={{ flexDirection: 'row' }}>
               {/* Timeline rail — slot name stands in for a clock time, since
-                  a plan entry doesn't carry one. */}
+                  a plan entry doesn't carry one. Stretches to the row's full
+                  height automatically, so it still spans correctly when a
+                  slot holds several cards. */}
               <View style={{ width: 66, alignItems: 'flex-end' }}>
                 <Text
                   style={{
@@ -145,38 +153,80 @@ export default function Plan() {
               </View>
 
               <View style={{ flex: 1, paddingBottom: 22 }}>
-                {recipe && entry ? (
-                  <AnimatedPressable
-                    onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
-                    onLongPress={() => removeFromPlan(entry.id)}
-                    accessibilityRole="button"
-                    accessibilityHint="Long press to remove from plan"
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: 10,
-                      borderRadius: 16,
-                      backgroundColor: c.surface,
-                      borderWidth: 1,
-                      borderColor: c.border,
-                    }}>
-                    <RecipeImage
-                      recipe={recipe}
-                      glyph={20}
-                      style={{ width: 44, height: 44, borderRadius: 22 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14.5, fontWeight: '700', color: c.text }}>
-                        {recipe.title}
+                {entries.length > 0 ? (
+                  <>
+                    {entries.map(({ entry, recipe }) => (
+                      <Swipeable
+                        key={entry.id}
+                        overshootRight={false}
+                        renderRightActions={(_progress, dragX) => (
+                          <Pressable
+                            onPress={() => removeFromPlan(entry.id)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${recipe.title} from plan`}
+                            style={{
+                              width: 64,
+                              marginLeft: 8,
+                              borderRadius: 16,
+                              backgroundColor: c.danger,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: dragX.interpolate({
+                                inputRange: [-64, -10, 0],
+                                outputRange: [1, 0.4, 0],
+                                extrapolate: 'clamp',
+                              }),
+                            }}>
+                            <Trash color="#fff" size={18} />
+                          </Pressable>
+                        )}>
+                        <AnimatedPressable
+                          onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } })}
+                          onLongPress={() => removeFromPlan(entry.id)}
+                          accessibilityRole="button"
+                          accessibilityHint="Swipe left, or long press, to remove from plan"
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: 10,
+                            borderRadius: 16,
+                            backgroundColor: c.surface,
+                            borderWidth: 1,
+                            borderColor: c.border,
+                            marginBottom: 10,
+                          }}>
+                          <RecipeImage
+                            recipe={recipe}
+                            glyph={20}
+                            style={{ width: 44, height: 44, borderRadius: 22 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14.5, fontWeight: '700', color: c.text }}>
+                              {recipe.title}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: c.textSec, marginTop: 2 }}>
+                              {timeLabel(recipe)} · serves {entry.servings}
+                            </Text>
+                          </View>
+                        </AnimatedPressable>
+                      </Swipeable>
+                    ))}
+                    <Pressable
+                      onPress={() => router.push('/(tabs)/recipes')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add another ${slot.toLowerCase()}`}
+                      style={{ alignSelf: 'flex-start', paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '600', color: c.accent }}>
+                        + Add another
                       </Text>
-                      <Text style={{ fontSize: 12, color: c.textSec, marginTop: 2 }}>
-                        {timeLabel(recipe)} · serves {entry.servings}
-                      </Text>
-                    </View>
-                  </AnimatedPressable>
+                    </Pressable>
+                  </>
                 ) : (
-                  <View
+                  <Pressable
+                    onPress={() => router.push('/(tabs)/recipes')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add a ${slot.toLowerCase()}`}
                     style={{
                       borderWidth: 1,
                       borderStyle: 'dashed',
@@ -185,8 +235,8 @@ export default function Plan() {
                       paddingVertical: 14,
                       alignItems: 'center',
                     }}>
-                    <Text style={{ fontSize: 13, color: c.textSec }}>Empty</Text>
-                  </View>
+                    <Text style={{ fontSize: 13, color: c.textSec }}>+ Add meal</Text>
+                  </Pressable>
                 )}
               </View>
             </View>

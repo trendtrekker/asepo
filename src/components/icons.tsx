@@ -327,3 +327,19 @@ export function PlusIcon({ color, size = 24 }: IconProps) {
     </Svg>
   );
 }
+
+/** Trash can — the swipe-to-delete reveal on plan cards. */
+export function Trash({ color, size = 18 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 18 18">
+      <Path
+        d="M3 4.5h12M7 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M6 4.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V4.5M7.5 8v5M10.5 8v5"
+        stroke={color}
+        strokeWidth={1.4}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
