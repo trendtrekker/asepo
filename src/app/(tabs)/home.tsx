@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Refresh } from '@/components/icons';
@@ -11,7 +11,7 @@ import { Button, Screen } from '@/components/ui';
 import { MEAL_FILL, timeLabel, type Recipe } from '@/data/sample';
 import { addDays, fromIso, todayIso, weekdayShort } from '@/lib/dates';
 import { sortRecipes } from '@/lib/filter-recipes';
-import { useStore } from '@/store/app-store';
+import { MEAL_SLOTS, useStore, type MealSlot, type PlanEntry } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
 
 /** "Good morning" until noon, "Good afternoon" until 6pm, then evening. */
@@ -19,6 +19,61 @@ function greetingFor(hour: number): string {
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';
+}
+
+/** Which meal slot is "now", so the hero opens on the meal that's actually relevant. */
+function currentSlotFor(hour: number): MealSlot {
+  if (hour < 10) return 'Breakfast';
+  if (hour < 14) return 'Lunch';
+  if (hour < 20) return 'Dinner';
+  return 'Snack';
+}
+
+/** "Tonight's Dinner", "Today's Breakfast", "Tomorrow's Lunch", "Fri's Snack". */
+function heroLabel(entryDate: string, slot: MealSlot): string {
+  const today = todayIso();
+  const when =
+    entryDate === today
+      ? slot === 'Dinner'
+        ? 'Tonight'
+        : 'Today'
+      : entryDate === addDays(today, 1)
+        ? 'Tomorrow'
+        : weekdayShort(entryDate);
+  return `${when}’s ${slot}`;
+}
+
+/**
+ * Picks which day's meals the hero shows, and which one it opens on.
+ *
+ * Today's planned meals if there are any — opening on whichever slot is
+ * "now" rather than always the first one, so checking the app at 7am opens
+ * on breakfast, not a dinner that's twelve hours off. If nothing's planned
+ * today, falls forward to the next day that has anything planned at all,
+ * so the hero isn't empty just because today happens to be unplanned.
+ */
+function pickHeroDay(plan: PlanEntry[]): { entries: PlanEntry[]; initialIndex: number } {
+  const today = todayIso();
+  const todaysEntries = MEAL_SLOTS.map((slot) => plan.find((e) => e.date === today && e.slot === slot)).filter(
+    (e): e is PlanEntry => Boolean(e)
+  );
+
+  if (todaysEntries.length > 0) {
+    const currentIndex = MEAL_SLOTS.indexOf(currentSlotFor(new Date().getHours()));
+    const initialIndex = todaysEntries.findIndex((e) => MEAL_SLOTS.indexOf(e.slot) >= currentIndex);
+    return { entries: todaysEntries, initialIndex: initialIndex === -1 ? todaysEntries.length - 1 : initialIndex };
+  }
+
+  const nextDate = plan
+    .filter((e) => e.date > today)
+    .map((e) => e.date)
+    .sort()[0];
+  if (!nextDate) return { entries: [], initialIndex: 0 };
+
+  const nextDayEntries = MEAL_SLOTS.map((slot) => plan.find((e) => e.date === nextDate && e.slot === slot)).filter(
+    (e): e is PlanEntry => Boolean(e)
+  );
+  return { entries: nextDayEntries, initialIndex: 0 };
 }
 
 /** Screen 14 — Home. */
@@ -54,10 +109,15 @@ export default function Home() {
 
   const recentlySaved = sortRecipes(allRecipes, 'Recently added').slice(0, 6);
   const cookItAgain = sortRecipes(allRecipes, 'Most cooked').slice(0, 6);
-  // Whatever's actually planned for today's Dinner slot — not just the most
-  // recently added recipe, which has nothing to do with tonight.
-  const todaysDinner = plan.find((e) => e.date === todayIso() && e.slot === 'Dinner');
-  const tonight: Recipe | undefined = todaysDinner ? getRecipe(todaysDinner.recipeId) : undefined;
+  // The hero used to only ever show today's Dinner slot, sitting empty the
+  // rest of the day if that one slot was unplanned even when other meals
+  // weren't. Now it's every meal actually planned "now" (today, falling
+  // forward to the next planned day), opened on whichever slot fits the
+  // current time.
+  const { entries: heroEntries, initialIndex: heroInitialIndex } = pickHeroDay(plan);
+  const heroCards = heroEntries
+    .map((entry) => ({ entry, recipe: getRecipe(entry.recipeId) }))
+    .filter((c): c is { entry: PlanEntry; recipe: Recipe } => Boolean(c.recipe));
 
 
   return (
@@ -109,44 +169,9 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {/* Tonight's dinner */}
-        {tonight ? (
-          <View
-            style={{
-              marginHorizontal: 20,
-              marginTop: 16,
-              borderRadius: 20,
-              overflow: 'hidden',
-              backgroundColor: c.surface,
-              borderWidth: 1,
-              borderColor: c.border,
-            }}>
-            <RecipeImage recipe={tonight} glyph={56} style={{ height: 130 }} />
-            <View style={{ padding: 14 }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: '700',
-                  color: c.accent,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}>
-                Tonight’s dinner
-              </Text>
-              <Text style={{ marginTop: 4, fontSize: 18, fontWeight: '700', color: c.text }}>
-                {tonight.title}
-              </Text>
-              <Text style={{ marginTop: 2, fontSize: 13, color: c.textSec }}>
-                {timeLabel(tonight)} · Serves {tonight.servings}
-              </Text>
-              <Button
-                title="Cook"
-                height={44}
-                style={{ marginTop: 12, borderRadius: 22 }}
-                onPress={() => router.push({ pathname: '/cook/[id]', params: { id: tonight.id } })}
-              />
-            </View>
-          </View>
+        {/* This meal, now */}
+        {heroCards.length > 0 ? (
+          <HeroCarousel cards={heroCards} initialIndex={Math.min(heroInitialIndex, heroCards.length - 1)} />
         ) : (
           <View
             style={{
@@ -165,11 +190,11 @@ export default function Home() {
                 ? 'Loading your recipes…'
                 : allRecipes.length === 0
                   ? 'No recipes yet'
-                  : 'Nothing planned for dinner tonight'}
+                  : 'Nothing planned yet'}
             </Text>
             {!recipesLoading && allRecipes.length > 0 ? (
               <Button
-                title="Plan dinner"
+                title="Plan a meal"
                 variant="tinted"
                 height={40}
                 onPress={() => router.push('/(tabs)/plan')}
@@ -258,6 +283,112 @@ function Carousel({ title, recipes }: { title: string; recipes: Recipe[] }) {
           <RecipeCarouselCard key={r.id} recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
         ))}
       </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * The hero, now a swipeable strip instead of a single fixed card — one card
+ * per meal actually planned for the relevant day, opened on whichever slot
+ * fits the current time (see pickHeroDay). A single card behaves exactly
+ * like the old fixed hero; more than one adds paging dots underneath.
+ */
+function HeroCarousel({
+  cards,
+  initialIndex,
+}: {
+  cards: { entry: PlanEntry; recipe: Recipe }[];
+  initialIndex: number;
+}) {
+  const c = useColors();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const cardWidth = width - 40;
+  const gap = 12;
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // The contentOffset prop is only an initial layout hint and isn't reliably
+  // honored (especially on web) — an imperative scroll once the ScrollView
+  // has actually measured its content is the one that sticks.
+  useEffect(() => {
+    if (initialIndex === 0) return;
+    const t = setTimeout(
+      () => scrollRef.current?.scrollTo({ x: initialIndex * (cardWidth + gap), animated: false }),
+      0
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <View style={{ marginTop: 16 }}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={cardWidth + gap}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: 20, gap }}
+        onMomentumScrollEnd={(e) => {
+          const index = Math.round(e.nativeEvent.contentOffset.x / (cardWidth + gap));
+          setActiveIndex(Math.max(0, Math.min(cards.length - 1, index)));
+        }}>
+        {cards.map(({ entry, recipe }) => (
+          <View
+            key={entry.id}
+            style={{
+              width: cardWidth,
+              borderRadius: 20,
+              overflow: 'hidden',
+              backgroundColor: c.surface,
+              borderWidth: 1,
+              borderColor: c.border,
+            }}>
+            <RecipeImage recipe={recipe} glyph={56} style={{ height: 130 }} />
+            <View style={{ padding: 14 }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: c.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}>
+                {heroLabel(entry.date, entry.slot)}
+              </Text>
+              <Text style={{ marginTop: 4, fontSize: 18, fontWeight: '700', color: c.text }}>
+                {recipe.title}
+              </Text>
+              <Text style={{ marginTop: 2, fontSize: 13, color: c.textSec }}>
+                {timeLabel(recipe)} · Serves {entry.servings}
+              </Text>
+              <Button
+                title="Cook"
+                height={44}
+                style={{ marginTop: 12, borderRadius: 22 }}
+                onPress={() => router.push({ pathname: '/cook/[id]', params: { id: recipe.id } })}
+              />
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      {cards.length > 1 ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+          {cards.map((card, i) => (
+            <View
+              key={card.entry.id}
+              style={{
+                width: i === activeIndex ? 16 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === activeIndex ? c.accent : c.border,
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
