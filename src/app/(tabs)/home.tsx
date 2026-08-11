@@ -8,6 +8,7 @@ import { Refresh } from '@/components/icons';
 import { useAnimatedValue } from '@/lib/use-animated-value';
 import { RecipeCarouselCard } from '@/components/recipe-card';
 import { RecipeImage } from '@/components/recipe-image';
+import { useToast } from '@/components/toast';
 import { Button, Screen } from '@/components/ui';
 import { timeLabel, type Recipe } from '@/data/sample';
 import { addDays, fromIso, todayIso, weekdayShort } from '@/lib/dates';
@@ -80,9 +81,11 @@ function pickHeroDay(plan: PlanEntry[]): { entries: PlanEntry[]; initialIndex: n
 
 /** Screen 14 — Home. */
 export default function Home() {
-  const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe, profileName } = useStore();
+  const { recipes: allRecipes, recipesLoading, plan, grocery, getRecipe, profileName, isSignedIn, refresh } =
+    useStore();
   const c = useColors();
   const router = useRouter();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const spin = useAnimatedValue(0);
@@ -102,12 +105,25 @@ export default function Home() {
       })
     );
     anim.start();
-    const t = setTimeout(() => setRefreshing(false), 900);
-    return () => {
-      anim.stop();
-      clearTimeout(t);
-    };
+    return () => anim.stop();
   }, [refreshing, spin]);
+
+  // Pulls this account's latest cloud data — recipes, plan, grocery — so an
+  // edit made on another device actually shows up here. Previously this
+  // button just spun the icon for 900ms and did nothing else.
+  const onRefresh = async () => {
+    if (refreshing) return;
+    if (!isSignedIn) {
+      toast.show('Sign in to sync across devices');
+      return;
+    }
+    setRefreshing(true);
+    // A refresh that resolves instantly still reads as "did nothing" —
+    // hold the spin for a minimum stretch so the feedback is legible.
+    const [ok] = await Promise.all([refresh(), new Promise((r) => setTimeout(r, 500))]);
+    setRefreshing(false);
+    toast.show(ok ? 'Up to date' : "Couldn't refresh — check your connection");
+  };
 
   const recentlySaved = sortRecipes(allRecipes, 'Recently added').slice(0, 6);
   const cookItAgain = sortRecipes(allRecipes, 'Most cooked').slice(0, 6);
@@ -144,7 +160,7 @@ export default function Home() {
             {name ? `, ${name}` : ''}
           </Text>
           <Pressable
-            onPress={() => setRefreshing(true)}
+            onPress={onRefresh}
             accessibilityRole="button"
             accessibilityLabel="Refresh"
             style={{

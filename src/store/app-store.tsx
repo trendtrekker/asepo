@@ -203,6 +203,15 @@ type Store = {
   /** Most recent first, deduped, capped — drives Search's idle screen. */
   recentSearches: string[];
   recordSearch: (query: string) => void;
+
+  /**
+   * Re-pulls this account's cloud data — the only way to see an edit made on
+   * another device, since ongoing sync only pushes local changes up. A
+   * no-op for a signed-out guest, who has nothing in the cloud to pull.
+   * Returns whether it actually pulled anything, so a caller (the Home
+   * refresh button) can tell a real sync from a guest tapping it.
+   */
+  refresh: () => Promise<boolean>;
 };
 
 const AppContext = createContext<Store | null>(null);
@@ -416,6 +425,29 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     profileName,
   ]);
 
+  /**
+   * Manual pull, for the Home refresh button — the ongoing sync above only
+   * pushes local edits up, so an edit made on another device never appears
+   * here until this runs (or the next sign-in). Applies the same fields the
+   * sign-in merge does; leaves local state untouched on failure or for a
+   * signed-out guest, who has no remote copy to pull.
+   */
+  const refresh = useCallback(async () => {
+    if (!user) return false;
+    const remote = await pullRemoteState(user.id);
+    if (!remote) return false;
+    setRecipes(remote.recipes);
+    setStoredCookbooks(remote.cookbooks);
+    setFavorites(Object.fromEntries(remote.recipes.map((r) => [r.id, r.favorite])));
+    setGrocery(remote.grocery);
+    setPlan(remote.plan);
+    setProfileName(remote.profile.profileName);
+    setOnboarding(sanitizeOnboarding(remote.profile.onboarding));
+    setImportsUsed(remote.profile.importsUsed);
+    setPro(remote.profile.isPro);
+    return true;
+  }, [user]);
+
   const addRecipeToGrocery = useCallback((recipe: Recipe, servings?: number) => {
     const factor = (servings ?? recipe.servings) / recipe.servings;
     setGrocery((list) =>
@@ -557,6 +589,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
       recentSearches,
       recordSearch,
+      refresh,
     }),
     [
       recipes,
@@ -579,6 +612,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       aiConsentGiven,
       recentSearches,
       recordSearch,
+      refresh,
       addRecipeToGrocery,
     ]
   );
