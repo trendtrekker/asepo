@@ -4,7 +4,7 @@ import { useColorScheme } from 'react-native';
 
 import { darkColors, lightColors, type ThemeColors } from './tokens';
 
-type Mode = 'system' | 'light' | 'dark';
+export type Mode = 'system' | 'light' | 'dark';
 
 type ThemeValue = {
   colors: ThemeColors;
@@ -20,10 +20,12 @@ const MODE_KEY = 'asepo:theme-mode:v1';
 
 export function AsepoThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  // Defaults to light to match the design prototype until the saved choice
-  // (if any) loads in below. Users opt into dark (or 'system') from
+  // Defaults to following the device's own setting — a fresh install should
+  // already look right for a phone already in dark mode, not force light
+  // until someone finds the toggle. Overridden below once a saved choice
+  // (if any) loads in, and users can still pin Light or Dark explicitly from
   // Profile → Appearance.
-  const [mode, setModeState] = useState<Mode>('light');
+  const [mode, setModeState] = useState<Mode>('system');
 
   // Loads once, after mount — matches how the rest of the app persists
   // (lib/storage.ts) — so the choice survives a restart instead of always

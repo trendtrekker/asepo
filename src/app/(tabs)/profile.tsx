@@ -9,13 +9,19 @@ import { Button, Chip, Screen, SheetHandle, Toggle } from '@/components/ui';
 import { ALLERGY_OPTIONS, DIET_OPTIONS } from '@/data/sample';
 import { useStore } from '@/store/app-store';
 import { useAuth } from '@/store/auth-store';
-import { useTheme } from '@/theme/theme-context';
+import { useTheme, type Mode } from '@/theme/theme-context';
 
 type Sheet = 'name' | 'diet' | 'people' | 'allergies' | 'reset' | 'delete-account' | null;
 
+const APPEARANCE_OPTIONS: { key: Mode; label: string }[] = [
+  { key: 'system', label: 'Auto' },
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
+];
+
 /** Profile — appearance, preferences (editable in place), and account. */
 export default function Profile() {
-  const { colors: c, isDark, toggleDark } = useTheme();
+  const { colors: c, mode, setMode } = useTheme();
   const router = useRouter();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -161,8 +167,34 @@ export default function Profile() {
         </View>
 
         <Section title="Appearance">
-          <Row label="Dark mode">
-            <Toggle value={isDark} onPress={toggleDark} />
+          <Row label="Theme">
+            <View style={{ flexDirection: 'row', backgroundColor: c.chipBg, borderRadius: 10, padding: 3 }}>
+              {APPEARANCE_OPTIONS.map((opt) => {
+                const active = mode === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setMode(opt.key)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 11,
+                      borderRadius: 8,
+                      backgroundColor: active ? c.surface : 'transparent',
+                    }}>
+                    <Text
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: '600',
+                        color: active ? c.text : c.textSec,
+                      }}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </Row>
         </Section>
 
