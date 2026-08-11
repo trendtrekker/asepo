@@ -103,11 +103,40 @@ async function request<T>(baseUrl: string, path: string, init?: RequestInit): Pr
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 120_000;
 
-export function createHttpApi(baseUrl: string): RecipeApi {
+/**
+ * Supplies the current session's access token, or null when signed out.
+ *
+ * Injected rather than imported so this module stays free of any dependency
+ * on auth or storage, and so tests can drive it without a Supabase client.
+ * See index.ts for the real wiring.
+ */
+export type AccessTokenProvider = () => Promise<string | null>;
+
+export function createHttpApi(baseUrl: string, getAccessToken: AccessTokenProvider): RecipeApi {
   const base = baseUrl.replace(/\/$/, '');
+
+  /**
+   * A call the backend requires a session for, which is everything that costs
+   * money to serve. One helper rather than a token threaded through each
+   * screen: the failure mode of forgetting one is a 401 at runtime, in a
+   * flow that only breaks once someone actually tries to import something.
+   *
+   * A missing token is still sent — as no header at all — rather than
+   * short-circuited here, so the server stays the single authority on what a
+   * valid session is, and the app shows its own "Sign in to use this."
+   */
+  const authed = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+    const token = await getAccessToken();
+    return request<T>(base, path, {
+      ...init,
+      headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+  };
 
   return {
     async listRecipes() {
+      // Unauthenticated on the server, and returns an empty library — a fresh
+      // install seeds from it before anyone has signed in.
       return request<Recipe[]>(base, '/recipes');
     },
 
@@ -117,7 +146,7 @@ export function createHttpApi(baseUrl: string): RecipeApi {
      * animating a guess.
      */
     async extractRecipe(source: ImportSource, onProgress?: (p: ImportProgress) => void) {
-      const { taskId, labels } = await request<{ taskId: string; labels?: string[] }>(base, '/import', {
+      const { taskId, labels } = await authed<{ taskId: string; labels?: string[] }>('/import', {
         method: 'POST',
         body: JSON.stringify(source),
       });
@@ -129,13 +158,13 @@ export function createHttpApi(baseUrl: string): RecipeApi {
       if (labels?.length) onProgress?.({ step: 0, label: labels[0], labels });
 
       while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
-        const status = await request<{
+        const status = await authed<{
           status: 'pending' | 'ready' | 'failed';
           step?: number;
           label?: string;
           recipe?: ExtractedRecipe;
           error?: string;
-        }>(base, `/import/${encodeURIComponent(taskId)}`);
+        }>(`/import/${encodeURIComponent(taskId)}`);
 
         if (status.step !== undefined && status.step !== lastStep) {
           lastStep = status.step;
@@ -156,7 +185,7 @@ export function createHttpApi(baseUrl: string): RecipeApi {
     },
 
     async generateRecipeImage(recipe: Recipe) {
-      return request<ImageTask>(base, '/images', {
+      return authed<ImageTask>('/images', {
         method: 'POST',
         // The backend builds the kie.ai prompt — keeping prompt construction
         // server-side means it can be tuned without shipping an app update.
@@ -170,13 +199,12 @@ export function createHttpApi(baseUrl: string): RecipeApi {
     },
 
     async getImageTask(taskId: string) {
-      return request<ImageTask>(base, `/images/${encodeURIComponent(taskId)}`);
+      return authed<ImageTask>(`/images/${encodeURIComponent(taskId)}`);
     },
 
-    async healthifyRecipe(recipe: Recipe, accessToken: string | null) {
-      return request<HealthierRecipe>(base, '/healthify', {
+    async healthifyRecipe(recipe: Recipe) {
+      return authed<HealthierRecipe>('/healthify', {
         method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: JSON.stringify({
           title: recipe.title,
           ingredients: recipe.ingredients,
@@ -186,10 +214,9 @@ export function createHttpApi(baseUrl: string): RecipeApi {
       });
     },
 
-    async estimateNutrition(recipe: Recipe, accessToken: string | null) {
-      return request<NutritionEstimate>(base, '/nutrition', {
+    async estimateNutrition(recipe: Recipe) {
+      return authed<NutritionEstimate>('/nutrition', {
         method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: JSON.stringify({
           title: recipe.title,
           ingredients: recipe.ingredients,
@@ -199,7 +226,7 @@ export function createHttpApi(baseUrl: string): RecipeApi {
     },
 
     async suggestMeals(prompt: string) {
-      const { suggestions } = await request<{ suggestions: MealSuggestion[] }>(base, '/suggest-meals', {
+      const { suggestions } = await authed<{ suggestions: MealSuggestion[] }>('/suggest-meals', {
         method: 'POST',
         body: JSON.stringify({ prompt }),
       });

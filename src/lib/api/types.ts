@@ -117,18 +117,18 @@ export interface RecipeApi {
 
   /**
    * Rewrites a recipe's ingredients and steps to be healthier. Pro-only —
-   * the server independently verifies this against the caller's own
-   * session, so accessToken is required, not just a client-side gate.
+   * the server verifies that independently against the caller's own session
+   * rather than trusting the client-side gate.
    */
-  healthifyRecipe(recipe: Recipe, accessToken: string | null): Promise<HealthierRecipe>;
+  healthifyRecipe(recipe: Recipe): Promise<HealthierRecipe>;
 
   /** Estimates per-serving nutrition from the recipe's ingredients. Pro-only, same as above. */
-  estimateNutrition(recipe: Recipe, accessToken: string | null): Promise<NutritionEstimate>;
+  estimateNutrition(recipe: Recipe): Promise<NutritionEstimate>;
 
   /**
    * Names a handful of specific dishes for a loose request ("what can I have
-   * for breakfast today?"). Free — picking one to save still goes through
-   * the normal 'idea' import, which is where the import limit applies.
+   * for breakfast today?"). Doesn't consume an import — picking one to save
+   * goes through the normal 'idea' path, which is where the limit applies.
    */
   suggestMeals(prompt: string): Promise<MealSuggestion[]>;
 }

@@ -6,7 +6,12 @@ import { ApiError, createHttpApi } from '@/lib/api/http';
  * a raw "TypeError: Failed to fetch" or a bare status line must never survive
  * as the user-visible message, and the technical cause must survive as detail.
  */
-const api = createHttpApi('http://test.local');
+let token: string | null = null;
+const api = createHttpApi('http://test.local', async () => token);
+
+/** The headers the last fetch actually went out with. */
+const lastHeaders = (): Record<string, string> =>
+  ((global.fetch as jest.Mock).mock.calls.at(-1)?.[1]?.headers ?? {}) as Record<string, string>;
 
 function respondWith(body: unknown, init: ResponseInit = {}) {
   global.fetch = jest.fn().mockResolvedValue(
@@ -36,8 +41,60 @@ async function messageFor(call: () => Promise<unknown>) {
 let warn: jest.SpyInstance;
 beforeEach(() => {
   warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  token = null;
 });
 afterEach(() => jest.restoreAllMocks());
+
+/**
+ * The backend requires a session on everything that costs it money, so a call
+ * that forgets the header is a 401 the user sees as "Sign in to use this" —
+ * in the middle of an import they were entitled to make.
+ */
+describe('authentication', () => {
+  it('sends the session token on calls the backend gates', async () => {
+    token = 'token-abc';
+    respondWith({ suggestions: [] });
+    await api.suggestMeals('breakfast');
+
+    expect(lastHeaders().Authorization).toBe('Bearer token-abc');
+  });
+
+  it('carries it on the import poll as well as the request that starts one', async () => {
+    // The poll is a separate endpoint and equally gated; missing it would
+    // strand every import at the first tick rather than failing outright.
+    token = 'token-abc';
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ taskId: 't1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'ready', recipe: { title: 'x' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      ) as unknown as typeof fetch;
+
+    await api.extractRecipe({ kind: 'text', text: 'x' });
+
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    expect(calls[0][1].headers.Authorization).toBe('Bearer token-abc');
+    expect(calls[1][1].headers.Authorization).toBe('Bearer token-abc');
+  });
+
+  it('sends no header at all when signed out, rather than an empty one', async () => {
+    // An "Authorization: Bearer " with nothing after it reads as a malformed
+    // credential; absence is the honest signal, and the server owns the answer.
+    token = null;
+    respondWith({ suggestions: [] });
+    await api.suggestMeals('breakfast');
+
+    expect(lastHeaders().Authorization).toBeUndefined();
+  });
+});
 
 describe('network failures', () => {
   it('never surfaces the raw fetch exception to the user', async () => {
