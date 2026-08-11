@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { FadeIn } from '@/components/fade-in';
 import { Refresh } from '@/components/icons';
 import { useAnimatedValue } from '@/lib/use-animated-value';
@@ -277,9 +278,21 @@ export default function Home() {
 
         {/* Stats */}
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 22, paddingHorizontal: 20 }}>
-          <Stat value={String(allRecipes.length)} label="Recipes saved" />
-          <Stat value={String(plan.length)} label="Meals planned" />
-          <Stat value={String(grocery.length)} label="Grocery items" />
+          <Stat
+            value={String(allRecipes.length)}
+            label="Recipes saved"
+            onPress={() => router.push('/(tabs)/recipes')}
+          />
+          <Stat
+            value={String(plan.length)}
+            label="Meals planned"
+            onPress={() => router.push('/(tabs)/plan')}
+          />
+          <Stat
+            value={String(grocery.length)}
+            label="Grocery items"
+            onPress={() => router.push('/(tabs)/grocery')}
+          />
         </View>
       </ScrollView>
     </Screen>
@@ -427,10 +440,13 @@ function HeroCarousel({
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label, onPress }: { value: string; label: string; onPress: () => void }) {
   const c = useColors();
   return (
-    <View
+    <AnimatedPressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${value} ${label}`}
       style={{
         flex: 1,
         backgroundColor: c.chipBg,
@@ -440,6 +456,6 @@ function Stat({ value, label }: { value: string; label: string }) {
       }}>
       <Text style={{ fontSize: 21, fontWeight: '700', color: c.text }}>{value}</Text>
       <Text style={{ fontSize: 11.5, fontWeight: '500', color: c.textSec }}>{label}</Text>
-    </View>
+    </AnimatedPressable>
   );
 }
