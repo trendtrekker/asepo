@@ -157,7 +157,8 @@ function fromJsonLd(html: string, url: URL): ExtractedRecipe | null {
  * ------------------------------------------------------------------ */
 
 export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
-  const url = assertPublicUrl(rawUrl);
+  // Async now: judging a hostname means resolving it first — see fetch-page.ts.
+  const url = await assertPublicUrl(rawUrl);
   const platform = platformOf(url);
 
   // Social platforms never carry JSON-LD, so don't waste a fetch on them.
