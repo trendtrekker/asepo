@@ -356,14 +356,68 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [hydrated, plan, recipes]);
 
   /**
+   * Puts this device back to what a fresh install actually holds. Deliberately
+   * not RECIPE_SAMPLES: the real API seeds a new install with an empty library
+   * (see seedFromApi), and handing someone who just signed out a shelf of
+   * invented recipes is the same dishonesty 1532f23 took off first launch.
+   * Cookbooks go back to the seed shells for that same reason — those are what
+   * a fresh install has. AI consent goes too; it's a permission a person gave,
+   * not a property of the handset, so the next one has to be asked themselves.
+   */
+  const clearAccountState = useCallback(() => {
+    void clearState();
+    setRecipes([]);
+    setStoredCookbooks(COOKBOOK_SEED);
+    setFavorites({});
+    setGrocery([]);
+    setPlan([]);
+    setOnboarding(emptyOnboarding);
+    setImportsUsed(0);
+    setPro(false);
+    setProfileName('');
+    setAiConsentGiven(false);
+    setRecentSearches([]);
+    setPendingImport(null);
+    setPendingImportSource(null);
+  }, []);
+
+  /**
    * Which user id local state has already been reconciled against. Reset on
    * sign-out so the next sign-in (same or different account) re-runs the
    * merge below rather than treating a stale match as "already synced".
    */
   const syncedUserId = useRef<string | null>(null);
+
+  /**
+   * Whose data is currently sitting on this device. Distinguishes a real
+   * sign-out from a cold start that hasn't resolved its session yet — both
+   * read as `user === null` — and from a guest who was never signed in at
+   * all and must keep the library they built locally.
+   */
+  const deviceUserId = useRef<string | null>(null);
+
+  /**
+   * Signing out has to take the account's data with it. Without this the next
+   * person to sign in on this handset opened onto the previous one's recipes,
+   * and — since a brand-new account has nothing in the cloud to pull — the
+   * merge effect below then pushed that data up into *their* Supabase rows,
+   * turning a stale screen into someone else's permanent library.
+   *
+   * A session Supabase ends by itself (a refresh token that can't recover)
+   * lands here too. That's the right side to err on: the account's cloud copy
+   * is untouched and comes back on the next sign-in, whereas leaving the data
+   * on an unauthenticated device is the exact failure this closes.
+   */
   useEffect(() => {
-    if (!user) syncedUserId.current = null;
-  }, [user]);
+    if (user) {
+      deviceUserId.current = user.id;
+      return;
+    }
+    if (!deviceUserId.current) return;
+    deviceUserId.current = null;
+    syncedUserId.current = null;
+    clearAccountState();
+  }, [user, clearAccountState]);
 
   /**
    * One-time merge on sign-in: pull the account's cloud data down if it has
