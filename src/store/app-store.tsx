@@ -19,6 +19,7 @@ import {
 import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
 import { pickUnlockedMethod, type ImportMethodId } from '@/lib/import-methods';
+import { clearOnboarded } from '@/lib/onboarding';
 import { reconcilePlanNotifications } from '@/lib/plan-notifications';
 import { clearState, loadState, saveState } from '@/lib/storage';
 import { hasRemoteData, pullRemoteState, pushLocalState } from '@/lib/sync';
@@ -683,6 +684,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       authLoading,
 
       resetEverything: () => {
+        // "back to a fresh install", per the confirmation dialog — which means
+        // the intro too. Takes effect on the next launch; the tabs are already
+        // mounted and have already set the flag for this one.
+        void clearOnboarded();
         clearState().then(() => {
           setGrocery([]);
           setPlan([]);
