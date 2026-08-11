@@ -242,16 +242,48 @@ async function replaceTable<Row extends { id: string }>(
   }
 }
 
-export async function hasRemoteData(userId: string): Promise<boolean> {
+/**
+ * 'unknown' is the case worth having a name for: we asked and didn't get a
+ * usable answer, which is not the same fact as "this account is empty".
+ */
+export type RemoteDataCheck = 'has-data' | 'empty' | 'unknown';
+
+/**
+ * Whether this account has anything in the cloud yet — the question that
+ * decides, on first sign-in, between pulling the account's data down and
+ * migrating this device's data up.
+ *
+ * Three-valued deliberately. This used to return a plain boolean built from
+ * `count` alone, so a query that failed came back as `null` and read exactly
+ * like a genuine zero. That sent the caller down the migrate-up branch, where
+ * replaceTable deletes every remote row the local copy doesn't have — meaning
+ * one dropped request while signing in on a new device could delete the whole
+ * account. Unlike the rest of this module, "couldn't tell" cannot be swallowed
+ * here: it's the input to a destructive decision, so it has to reach the
+ * caller as its own answer.
+ */
+export async function hasRemoteData(userId: string): Promise<RemoteDataCheck> {
   const tables = ['recipes', 'cookbooks', 'grocery_items', 'plan_entries'] as const;
-  for (const table of tables) {
-    const { count } = await supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    if (count && count > 0) return true;
+  let uncertain = false;
+
+  try {
+    for (const table of tables) {
+      const { count, error } = await supabase
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      // A row anywhere settles it — the tables we couldn't read don't matter
+      // once we know the account isn't empty.
+      if (!error && count) return 'has-data';
+      // A count of exactly 0 is a real answer; null alongside no error isn't.
+      if (error || count === null) uncertain = true;
+    }
+  } catch {
+    return 'unknown';
   }
-  return false;
+
+  return uncertain ? 'unknown' : 'empty';
 }
 
 export async function pullRemoteState(userId: string): Promise<LocalSnapshot | null> {

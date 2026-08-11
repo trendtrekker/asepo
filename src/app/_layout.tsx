@@ -4,9 +4,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ToastProvider } from '@/components/toast';
+import { configureNotificationHandler } from '@/lib/notification-presentation';
 import { AppStoreProvider } from '@/store/app-store';
 import { AuthProvider } from '@/store/auth-store';
 import { AsepoThemeProvider, useTheme } from '@/theme/theme-context';
+
+// At module scope, not in an effect: a notification arriving before a handler
+// is registered is discarded outright, and the cook timer can fire seconds
+// after launch. See notification-presentation.ts.
+configureNotificationHandler();
 
 function RootNavigator() {
   const { colors, isDark } = useTheme();

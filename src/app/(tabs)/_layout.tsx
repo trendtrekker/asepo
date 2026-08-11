@@ -12,6 +12,7 @@ import {
   PersonIcon,
   PlusIcon,
 } from '@/components/icons';
+import { markOnboarded } from '@/lib/onboarding';
 import { useAnimatedValue } from '@/lib/use-animated-value';
 import { useColors } from '@/theme/theme-context';
 
@@ -126,6 +127,18 @@ function AsepoTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
+  /**
+   * Reaching the tabs at all is what counts as having been through the intro,
+   * so the flag is set here rather than on the notification primer's buttons.
+   * There is more than one way out of that flow — the primer, but also the
+   * paywall's close button, and a deep link straight into a tab — and marking
+   * each exit would leave whichever one got forgotten replaying the intro
+   * forever. One entrance is easier to be right about than five exits.
+   */
+  useEffect(() => {
+    void markOnboarded();
+  }, []);
+
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AsepoTabBar {...props} />}>
       <Tabs.Screen name="home" />

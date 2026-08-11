@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { fetchBytes } from './fetch-page.js';
 import { supabaseAdmin } from './supabase-admin.js';
 
 /**
@@ -33,15 +34,28 @@ async function uploadToBucket(buffer: Buffer, ext: string, contentType: string):
   return data.publicUrl;
 }
 
+/**
+ * Copies a remote image into our bucket.
+ *
+ * `sourceUrl` is not ours: for an imported recipe it is whatever `og:image`
+ * the fetched page happened to declare, which means a stranger chooses it.
+ * This used to be a bare fetch() with no check at all, so a page could point
+ * it at an internal address and have the response body uploaded to a
+ * world-readable bucket — the request forgery and the exfiltration in one
+ * step. fetchBytes applies the same address and redirect guard as every other
+ * outbound request; the content-type check below is the second half, so that
+ * a response that isn't actually an image never gets persisted and handed
+ * back as a URL regardless of how it was obtained.
+ */
 export async function storeImage(sourceUrl: string): Promise<string> {
-  const response = await fetch(sourceUrl);
-  if (!response.ok) throw new Error(`Could not download image (${response.status})`);
+  const { bytes, contentType } = await fetchBytes(sourceUrl);
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const contentType = response.headers.get('content-type') ?? 'image/png';
+  if (!contentType.startsWith('image/')) {
+    throw new Error(`Refusing to store a ${contentType || 'typeless'} response as an image`);
+  }
   const ext = contentType.includes('jpeg') ? 'jpg' : contentType.includes('webp') ? 'webp' : 'png';
 
-  return uploadToBucket(buffer, ext, contentType);
+  return uploadToBucket(bytes, ext, contentType);
 }
 
 /**

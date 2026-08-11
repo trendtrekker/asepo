@@ -6,18 +6,27 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "ALLOW_CLEARTEXT_HTTP": "true"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "ALLOW_CLEARTEXT_HTTP": "true"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "ALLOW_CLEARTEXT_HTTP": "false"
+      },
       "android": {
         "buildType": "app-bundle"
       }
