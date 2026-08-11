@@ -17,7 +17,6 @@ import { convertMeasure } from '@/lib/quantity';
 import { recipeShareText } from '@/lib/share-recipe';
 import { extractTimer } from '@/lib/steps';
 import { useStore } from '@/store/app-store';
-import { useAuth } from '@/store/auth-store';
 import { useColors } from '@/theme/theme-context';
 
 type Tab = 'Ingredients' | 'Steps' | 'Nutrition';
@@ -34,7 +33,6 @@ export default function RecipeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isFavorite, toggleFavorite, getRecipe, deleteRecipe, addRecipeToGrocery, isPro, aiConsentGiven } =
     useStore();
-  const { session } = useAuth();
 
   const recipe = getRecipe(id);
   const [tab, setTab] = useState<Tab>('Ingredients');
@@ -56,13 +54,15 @@ export default function RecipeDetail() {
     setNutritionLoading(true);
     setNutritionError(null);
     api
-      .estimateNutrition(recipe, session?.access_token ?? null)
+      .estimateNutrition(recipe)
       .then(setNutrition)
       .catch((e: unknown) =>
         setNutritionError(e instanceof Error ? e.message : 'Could not estimate nutrition')
       )
       .finally(() => setNutritionLoading(false));
-  }, [recipe, session]);
+    // The access token is no longer a dependency — the API layer reads the
+    // live session itself, so this doesn't need to re-create on a refresh.
+  }, [recipe]);
 
   /**
    * The estimate is fetched lazily — only once the tab is actually open, and
@@ -119,7 +119,7 @@ export default function RecipeDetail() {
     if (healthifying) return;
     setHealthifying(true);
     api
-      .healthifyRecipe(recipe, session?.access_token ?? null)
+      .healthifyRecipe(recipe)
       .then((result) => {
         setHealthier(result);
         setShowingHealthier(true);
