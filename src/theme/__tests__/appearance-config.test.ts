@@ -1,4 +1,23 @@
-import appConfig from '../../../app.json';
+import appJson from '../../../app.json';
+
+/**
+ * What actually ships, rather than what app.json says: a dynamic app.config.js
+ * gets the last word, so asserting against the static file alone would pass
+ * happily while the built app disagreed.
+ */
+type AppearanceConfig = {
+  userInterfaceStyle?: string;
+  ios?: { userInterfaceStyle?: string };
+  android?: { userInterfaceStyle?: string };
+};
+
+const appConfig = (): AppearanceConfig => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const configFn = require('../../../app.config.js') as (a: {
+    config: unknown;
+  }) => AppearanceConfig;
+  return configFn({ config: appJson.expo });
+};
 
 /**
  * AsepoThemeProvider's "Auto" mode reads useColorScheme(), and what that
@@ -19,16 +38,13 @@ import appConfig from '../../../app.json';
 
 describe('app.json appearance configuration', () => {
   it('lets the OS decide the appearance, so Auto can follow it', () => {
-    expect(appConfig.expo.userInterfaceStyle).toBe('automatic');
+    expect(appConfig().userInterfaceStyle).toBe('automatic');
   });
 
   it('does not re-pin the appearance per platform', () => {
     // A platform block overrides the top-level value, which would reintroduce
     // the bug on that platform alone — the harder version to notice.
-    const { ios, android } = appConfig.expo as {
-      ios?: { userInterfaceStyle?: string };
-      android?: { userInterfaceStyle?: string };
-    };
+    const { ios, android } = appConfig();
     expect(ios?.userInterfaceStyle ?? 'automatic').toBe('automatic');
     expect(android?.userInterfaceStyle ?? 'automatic').toBe('automatic');
   });
