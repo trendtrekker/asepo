@@ -53,11 +53,14 @@ function heroLabel(entryDate: string, slot: MealSlot): string {
  * today, falls forward to the next day that has anything planned at all,
  * so the hero isn't empty just because today happens to be unplanned.
  */
+const bySlotOrder = (a: PlanEntry, b: PlanEntry) => MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot);
+
 function pickHeroDay(plan: PlanEntry[]): { entries: PlanEntry[]; initialIndex: number } {
   const today = todayIso();
-  const todaysEntries = MEAL_SLOTS.map((slot) => plan.find((e) => e.date === today && e.slot === slot)).filter(
-    (e): e is PlanEntry => Boolean(e)
-  );
+  // A slot can hold more than one meal (Plan supports adding several) — this
+  // used to pick only the first entry per slot via .find(), silently
+  // dropping a second lunch or dinner from the hero.
+  const todaysEntries = plan.filter((e) => e.date === today).sort(bySlotOrder);
 
   if (todaysEntries.length > 0) {
     const currentIndex = MEAL_SLOTS.indexOf(currentSlotFor(new Date().getHours()));
@@ -71,9 +74,7 @@ function pickHeroDay(plan: PlanEntry[]): { entries: PlanEntry[]; initialIndex: n
     .sort()[0];
   if (!nextDate) return { entries: [], initialIndex: 0 };
 
-  const nextDayEntries = MEAL_SLOTS.map((slot) => plan.find((e) => e.date === nextDate && e.slot === slot)).filter(
-    (e): e is PlanEntry => Boolean(e)
-  );
+  const nextDayEntries = plan.filter((e) => e.date === nextDate).sort(bySlotOrder);
   return { entries: nextDayEntries, initialIndex: 0 };
 }
 
