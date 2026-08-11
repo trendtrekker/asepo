@@ -88,6 +88,14 @@ const sanitizeOnboarding = (o: Partial<Onboarding> | null | undefined): Onboardi
   peopleCount: o?.peopleCount ?? emptyOnboarding.peopleCount,
 });
 
+/**
+ * How hard the sign-in merge tries before standing down for the session.
+ * Signing in is exactly when a phone is likeliest to be half-connected, and
+ * the alternative to retrying is a session that never syncs at all.
+ */
+const MERGE_ATTEMPTS = 3;
+const MERGE_RETRY_MS = 2000;
+
 export const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner', 'Snack'] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
@@ -357,42 +365,98 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     if (!user) syncedUserId.current = null;
   }, [user]);
 
-  // One-time merge on sign-in: pull the account's cloud data down if it has
-  // any, otherwise push whatever's on this device up (first-sign-in migration).
+  /**
+   * One-time merge on sign-in: pull the account's cloud data down if it has
+   * any, otherwise push whatever's on this device up (first-sign-in migration).
+   *
+   * `syncedUserId` is only stamped once one of those two has actually
+   * happened, because stamping it is what opens the gate on the ongoing push
+   * below — and that push deletes remote rows the local copy doesn't have.
+   * Treating a failed check or a failed pull as "reconciled" therefore isn't a
+   * stale-data problem, it's a destructive one: a device that could not read
+   * the account would go on to overwrite it with whatever it was holding,
+   * which on a fresh install is nothing. So an unresolved failure retries a
+   * few times and then stands down for the session, leaving both copies
+   * exactly as they were.
+   */
   useEffect(() => {
     if (!hydrated || !user || syncedUserId.current === user.id) return;
     const userId = user.id;
+    let cancelled = false;
+
+    /**
+     * Waits between attempts, but hands the teardown below a way to cut the
+     * wait short — otherwise signing out mid-backoff leaves a timer armed for
+     * seconds against a user who is already gone. Resolving rather than just
+     * clearing lets the loop wake up and see `cancelled`.
+     */
+    let abortWait: (() => void) | null = null;
+    const waitBeforeRetry = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        abortWait = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+
+    /** One go at reconciling. Returns whether the account is now settled. */
+    const attemptMerge = async (): Promise<boolean> => {
+      const remote = await hasRemoteData(userId);
+      if (cancelled || remote === 'unknown') return false;
+
+      if (remote === 'has-data') {
+        const snapshot = await pullRemoteState(userId);
+        if (cancelled) return false;
+        if (!snapshot) return false;
+        setRecipes(snapshot.recipes);
+        setStoredCookbooks(snapshot.cookbooks);
+        setFavorites(Object.fromEntries(snapshot.recipes.map((r) => [r.id, r.favorite])));
+        setGrocery(snapshot.grocery);
+        setPlan(snapshot.plan);
+        setProfileName(snapshot.profile.profileName);
+        setOnboarding(sanitizeOnboarding(snapshot.profile.onboarding));
+        setImportsUsed(snapshot.profile.importsUsed);
+        setPro(snapshot.profile.isPro);
+        return true;
+      }
+
+      // Established empty, so this can't delete anything that matters — which
+      // is also why a push that quietly fails (pushLocalState swallows its own
+      // errors) is still safe to call settled: the ongoing push retries on the
+      // next local edit, against an account with nothing to lose.
+      await pushLocalState(userId, {
+        recipes,
+        cookbooks: storedCookbooks,
+        grocery,
+        plan,
+        profile: { profileName, onboarding, isPro, importsUsed },
+      });
+      return !cancelled;
+    };
 
     (async () => {
-      const remoteHasData = await hasRemoteData(userId);
-      if (remoteHasData) {
-        const remote = await pullRemoteState(userId);
-        if (remote) {
-          setRecipes(remote.recipes);
-          setStoredCookbooks(remote.cookbooks);
-          setFavorites(Object.fromEntries(remote.recipes.map((r) => [r.id, r.favorite])));
-          setGrocery(remote.grocery);
-          setPlan(remote.plan);
-          setProfileName(remote.profile.profileName);
-          setOnboarding(sanitizeOnboarding(remote.profile.onboarding));
-          setImportsUsed(remote.profile.importsUsed);
-          setPro(remote.profile.isPro);
-        } else {
-          // Pull failed — leave local state as-is rather than risk showing
-          // an empty account; the next debounced push effect will retry.
-          console.warn('asepo: failed to pull remote state for', userId);
+      for (let attempt = 0; attempt < MERGE_ATTEMPTS; attempt++) {
+        if (attempt > 0) {
+          await waitBeforeRetry(MERGE_RETRY_MS * attempt);
+          if (cancelled) return;
         }
-      } else {
-        await pushLocalState(userId, {
-          recipes,
-          cookbooks: storedCookbooks,
-          grocery,
-          plan,
-          profile: { profileName, onboarding, isPro, importsUsed },
-        });
+        if (await attemptMerge()) {
+          syncedUserId.current = userId;
+          return;
+        }
+        if (cancelled) return;
       }
-      syncedUserId.current = userId;
+      // Out of attempts. The device keeps working on its local copy, and the
+      // cloud copy is left untouched rather than replaced from a device that
+      // never managed to read it. Signing in again re-runs this.
+      console.warn('asepo: could not reconcile with the cloud for', userId);
     })();
+
+    return () => {
+      cancelled = true;
+      abortWait?.();
+    };
     // Only the sign-in transition should trigger this — not every local edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, user]);
