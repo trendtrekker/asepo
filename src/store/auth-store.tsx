@@ -1,7 +1,8 @@
-import type { Session, User } from '@supabase/supabase-js';
+import type { AuthError, Session, User } from '@supabase/supabase-js';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
@@ -13,6 +14,40 @@ import { supabase } from '@/lib/supabase';
 
 type AuthResult = { error: string | null };
 
+/**
+ * Where Supabase should send someone after they click the link in a
+ * password-reset email. Web gets a real URL off the current origin, so it
+ * works the same on localhost and on the deployed site; native gets the
+ * `asepo://` deep link.
+ *
+ * Both have to be listed under Auth -> URL Configuration -> Redirect URLs in
+ * the Supabase dashboard. Anything not on that list is silently swapped for
+ * the project's Site URL, which looks exactly like the link "not working".
+ */
+function passwordResetRedirect(): string {
+  return Platform.OS === 'web'
+    ? `${window.location.origin}/reset-password`
+    : AuthSession.makeRedirectUri({ scheme: 'asepo', path: 'reset-password' });
+}
+
+/**
+ * Supabase answers "no account with that email" and "wrong password" with one
+ * identical `invalid_credentials` — deliberately, so the sign-in form can't be
+ * used to probe which emails have accounts. Worth keeping, but the raw message
+ * ("Invalid login credentials") reads as *we don't recognise you*, which sends
+ * people off to create a second account when the password was the real
+ * problem. Keep the ambiguity, name the likelier cause, point at the way out.
+ */
+function describeSignInError(error: AuthError): string {
+  if (error.code === 'invalid_credentials' || /invalid login credentials/i.test(error.message)) {
+    return "That email and password don't match. Check the password, or reset it with “Forgot password?”.";
+  }
+  if (error.code === 'email_not_confirmed') {
+    return 'Confirm your email first — check your inbox for the link we sent when you signed up.';
+  }
+  return error.message;
+}
+
 type AuthStore = {
   session: Session | null;
   user: User | null;
@@ -22,6 +57,12 @@ type AuthStore = {
   signUpWithEmail: (email: string, password: string) => Promise<AuthResult>;
   signInWithEmail: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
+  /** Emails a reset link that lands on /reset-password. */
+  sendPasswordReset: (email: string) => Promise<AuthResult>;
+  /** Sets a new password for whoever the current session belongs to — the
+   * recovery session from a reset link counts, which is what makes the
+   * forgotten-password path work. */
+  updatePassword: (password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
   /** Permanently deletes the account — recipes, cookbooks, grocery list, and
    * plan all cascade-delete with it. Cannot be undone. */
@@ -66,6 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string): Promise<AuthResult> => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    return { error: error ? describeSignInError(error) : null };
+  };
+
+  const sendPasswordReset = async (email: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: passwordResetRedirect(),
+    });
+    return { error: error?.message ?? null };
+  };
+
+  const updatePassword = async (password: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.updateUser({ password });
     return { error: error?.message ?? null };
   };
 
@@ -146,6 +199,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpWithEmail,
     signInWithEmail,
     signInWithGoogle,
+    sendPasswordReset,
+    updatePassword,
     signOut,
     deleteAccount,
   };

@@ -1,11 +1,10 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Eye } from '@/components/icons';
 import { Button, Field, Screen } from '@/components/ui';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth-store';
 import { useColors } from '@/theme/theme-context';
 import { radius } from '@/theme/tokens';
@@ -17,9 +16,17 @@ export default function EmailAuth() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signUpWithEmail, signInWithEmail } = useAuth();
+  const { signUpWithEmail, signInWithEmail, sendPasswordReset } = useAuth();
+  const { mode: requestedMode } = useLocalSearchParams<{ mode?: string }>();
 
-  const [mode, setMode] = useState<'signup' | 'signin'>('signup');
+  // Sign-up is the right default for the onboarding run that ends here, but
+  // the screens a returning user actually reaches for — "Sign in" in Profile,
+  // "Skip" past the intro — say so explicitly. Landing them on "Create your
+  // account" made them toggle a link they mostly didn't notice, and the
+  // already-exists error they hit instead reads nothing like the problem.
+  const [mode, setMode] = useState<'signup' | 'signin'>(
+    requestedMode === 'signin' ? 'signin' : 'signup'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -129,8 +136,8 @@ export default function EmailAuth() {
                   toast.show('Enter your email first');
                   return;
                 }
-                const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
-                toast.show(error ? error.message : 'Check your email for a reset link');
+                const { error } = await sendPasswordReset(email);
+                toast.show(error ? error : 'Check your email for a reset link');
               }}
               style={{ alignSelf: 'flex-end' }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: c.accent }}>
