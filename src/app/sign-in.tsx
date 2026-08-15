@@ -1,4 +1,4 @@
-import { useIsFocused, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,9 @@ export default function SignIn() {
   const insets = useSafeAreaInsets();
   const { session, signInWithGoogle } = useAuth();
   const isFocused = useIsFocused();
+  /** Passed straight through to /email — this screen offers Apple and Google
+   * as well, so it stays neutral itself and only forwards the caller's intent. */
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [googleBusy, setGoogleBusy] = useState(false);
 
   // The OAuth round-trip lands the session asynchronously via
@@ -80,7 +83,13 @@ export default function SignIn() {
           onPress={continueWithGoogle}
           style={googleBusy ? { opacity: 0.7 } : undefined}
         />
-        <Button title="Continue with Email" variant="tinted" onPress={() => router.push('/email')} />
+        <Button
+          title="Continue with Email"
+          variant="tinted"
+          onPress={() =>
+            router.push(mode ? { pathname: '/email', params: { mode } } : '/email')
+          }
+        />
       </View>
 
       <Text

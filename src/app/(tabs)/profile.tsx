@@ -241,7 +241,9 @@ export default function Profile() {
               </Text>
             </Row>
           ) : (
-            <Row label="Sign in" onPress={() => router.push('/sign-in')}>
+            <Row
+              label="Sign in"
+              onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'signin' } })}>
               <Text style={{ fontSize: 14, color: c.textSec }}>›</Text>
             </Row>
           )}

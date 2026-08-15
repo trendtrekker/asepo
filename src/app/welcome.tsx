@@ -24,7 +24,12 @@ export default function Welcome() {
   return (
     <Screen style={{ paddingTop: insets.top + 14 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20 }}>
-        <Pressable onPress={() => router.push('/sign-in')} accessibilityRole="button">
+        {/* Skipping the intro is overwhelmingly a returning-user move — a
+            first-timer goes through Continue -> quiz -> sign-in instead, which
+            still lands on sign-up. */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/sign-in', params: { mode: 'signin' } })}
+          accessibilityRole="button">
           <Text style={{ fontSize: 15, fontWeight: '500', color: c.textSec }}>Skip</Text>
         </Pressable>
       </View>
