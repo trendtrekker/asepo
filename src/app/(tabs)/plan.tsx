@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,19 +29,22 @@ export default function Plan() {
   const params = useLocalSearchParams<{ date?: string }>();
   const targetDate = typeof params.date === 'string' && params.date ? params.date : todayIso();
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(targetDate));
-  const [selectedDate, setSelectedDate] = useState(targetDate);
+  const [calendarSelection, setCalendarSelection] = useState<{
+    targetDate: string;
+    weekStart: string;
+    selectedDate: string;
+  } | null>(null);
+  const weekStart = calendarSelection?.targetDate === targetDate
+    ? calendarSelection.weekStart
+    : startOfWeek(targetDate);
+  const selectedDate = calendarSelection?.targetDate === targetDate
+    ? calendarSelection.selectedDate
+    : targetDate;
   const today = todayIso();
-
-  useEffect(() => {
-    setWeekStart(startOfWeek(targetDate));
-    setSelectedDate(targetDate);
-  }, [targetDate]);
 
   const changeWeek = (deltaDays: number) => {
     const nextStart = addDays(weekStart, deltaDays);
-    setWeekStart(nextStart);
-    setSelectedDate(nextStart);
+    setCalendarSelection({ targetDate, weekStart: nextStart, selectedDate: nextStart });
   };
 
   const dayEntries = plan.filter((e) => e.date === selectedDate);
@@ -80,7 +83,7 @@ export default function Plan() {
             return (
               <Pressable
                 key={iso}
-                onPress={() => setSelectedDate(iso)}
+                onPress={() => setCalendarSelection({ targetDate, weekStart, selectedDate: iso })}
                 accessibilityRole="button"
                 accessibilityLabel={`${weekdayShort(iso)} ${fromIso(iso).getDate()}`}
                 style={{ alignItems: 'center', gap: 6, width: 36 }}>

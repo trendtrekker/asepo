@@ -23,7 +23,7 @@ const EXAMPLES = [
  * themselves are free; picking one hands its title to the existing 'idea'
  * import path, which is where the import limit actually applies.
  */
-export default function MealSuggestion() {
+export default function MealSuggestionScreen() {
   const c = useColors();
   const toast = useToast();
   const router = useRouter();
@@ -104,7 +104,7 @@ export default function MealSuggestion() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled">
         <Text style={{ fontSize: 13, color: c.textSec, marginBottom: 10 }}>
-          Ask what to eat — a meal, a time of day, what's in the fridge, a mood — and we'll
+          Ask what to eat — a meal, a time of day, what’s in the fridge, a mood — and we’ll
           suggest a few dishes to pick from.
         </Text>
         <TextInput
