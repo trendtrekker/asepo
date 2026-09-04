@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 /**
  * Supabase — auth, database, and storage. The anon key is meant to be public;
@@ -36,8 +37,14 @@ export const supabase = createClient(url, anonKey, {
     storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
-    // RN has no browser URL bar to land a session token in — sessions come
-    // back through a deep link instead (see the OAuth flow), not this.
-    detectSessionInUrl: false,
+    // Password-recovery and email-confirmation links hand the session back in
+    // the URL fragment (#access_token=...). On web that fragment lands in the
+    // address bar and only supabase-js can pick it up — and only if it's
+    // allowed to look, which is what this does. Native has no address bar:
+    // the same links arrive as an `asepo://` deep link and are parsed by hand
+    // (see signInWithGoogle and reset-password), so leaving it on there would
+    // just race with that. Guarded on `window` too because the web build
+    // prerenders the first paint on plain Node, where there is no URL to read.
+    detectSessionInUrl: Platform.OS === 'web' && typeof window !== 'undefined',
   },
 });
