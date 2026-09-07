@@ -24,6 +24,7 @@ import { reconcilePlanNotifications } from '@/lib/plan-notifications';
 import { clearState, loadState, saveState } from '@/lib/storage';
 import { hasRemoteData, pullRemoteState, pushLocalState } from '@/lib/sync';
 import { useAuth } from '@/store/auth-store';
+import { usePurchases } from '@/store/purchases-store';
 
 /**
  * App state, persisted to device storage.
@@ -227,6 +228,7 @@ const AppContext = createContext<Store | null>(null);
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const purchases = usePurchases();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [storedCookbooks, setStoredCookbooks] = useState<StoredCookbook[]>([]);
   const [recipesLoading, setRecipesLoading] = useState(true);
@@ -243,6 +245,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [profileName, setProfileName] = useState('');
   const [aiConsentGiven, setAiConsentGiven] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!purchases.configured) return;
+    const timer = setTimeout(() => setPro(purchases.isPro), 0);
+    return () => clearTimeout(timer);
+  }, [purchases.configured, purchases.isPro]);
 
   const isSignedIn = Boolean(user);
   const unlockedMethod = useMemo<ImportMethodId | 'all' | null>(() => {

@@ -25,7 +25,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "ALLOW_CLEARTEXT_HTTP": "false"
+        "ALLOW_CLEARTEXT_HTTP": "false",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_ESOdaRZqoGWisTpqbtSNtpDeImE"
       },
       "android": {
         "buildType": "app-bundle"

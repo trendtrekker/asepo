@@ -7,6 +7,7 @@ import { ToastProvider } from '@/components/toast';
 import { configureNotificationHandler } from '@/lib/notification-presentation';
 import { AppStoreProvider } from '@/store/app-store';
 import { AuthProvider } from '@/store/auth-store';
+import { PurchasesProvider } from '@/store/purchases-store';
 import { AsepoThemeProvider, useTheme } from '@/theme/theme-context';
 
 // At module scope, not in an effect: a notification arriving before a handler
@@ -76,11 +77,13 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AsepoThemeProvider>
           <AuthProvider>
-            <AppStoreProvider>
-              <ToastProvider>
-                <RootNavigator />
-              </ToastProvider>
-            </AppStoreProvider>
+            <PurchasesProvider>
+              <AppStoreProvider>
+                <ToastProvider>
+                  <RootNavigator />
+                </ToastProvider>
+              </AppStoreProvider>
+            </PurchasesProvider>
           </AuthProvider>
         </AsepoThemeProvider>
       </SafeAreaProvider>

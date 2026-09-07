@@ -9,6 +9,7 @@ import { Button, Chip, Screen, SheetHandle, Toggle } from '@/components/ui';
 import { ALLERGY_OPTIONS, DIET_OPTIONS } from '@/data/sample';
 import { useStore } from '@/store/app-store';
 import { useAuth } from '@/store/auth-store';
+import { usePurchases } from '@/store/purchases-store';
 import { useTheme, type Mode } from '@/theme/theme-context';
 
 type Sheet = 'name' | 'diet' | 'people' | 'allergies' | 'reset' | 'delete-account' | null;
@@ -38,6 +39,15 @@ export default function Profile() {
     resetEverything,
   } = useStore();
   const { user, signOut, deleteAccount } = useAuth();
+  const { showCustomerCenter } = usePurchases();
+
+  const manageSubscription = async () => {
+    try {
+      await showCustomerCenter();
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : 'Could not open subscription management');
+    }
+  };
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [nameDraft, setNameDraft] = useState(profileName);
@@ -230,7 +240,7 @@ export default function Profile() {
           {isPro ? (
             <Row
               label="Manage subscription"
-              onPress={() => toast.show('Manage subscription needs StoreKit — not available yet')}>
+              onPress={manageSubscription}>
               <Text style={{ fontSize: 14, color: c.textSec }}>›</Text>
             </Row>
           ) : null}
