@@ -1,6 +1,7 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Screen } from '@/components/ui';
@@ -14,9 +15,10 @@ export default function SignIn() {
   const router = useRouter();
   const toast = useToast();
   const insets = useSafeAreaInsets();
-  const { session, signInWithGoogle } = useAuth();
+  const { session, signInWithApple, signInWithGoogle } = useAuth();
   const isFocused = useIsFocused();
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
 
   // The OAuth round-trip lands the session asynchronously via
   // onAuthStateChange, not as a direct return value from signInWithGoogle —
@@ -37,6 +39,14 @@ export default function SignIn() {
     setGoogleBusy(false);
     // A null error also covers "the user backed out of the browser sheet" —
     // silently do nothing rather than pushing forward with no real session.
+    if (error) toast.show(error);
+  };
+
+  const continueWithApple = async () => {
+    if (appleBusy) return;
+    setAppleBusy(true);
+    const { error } = await signInWithApple();
+    setAppleBusy(false);
     if (error) toast.show(error);
   };
 
@@ -69,11 +79,15 @@ export default function SignIn() {
       <View style={{ flex: 1 }} />
 
       <View style={{ gap: 12, width: '100%' }}>
-        <Button
-          title="Sign in with Apple"
-          variant="dark"
-          onPress={() => toast.show('Sign in with Apple isn’t set up yet')}
-        />
+        {Platform.OS === 'ios' ? (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={12}
+            onPress={continueWithApple}
+            style={{ width: '100%', height: 48, opacity: appleBusy ? 0.7 : 1 }}
+          />
+        ) : null}
         <Button
           title={googleBusy ? 'Continue with Google…' : 'Continue with Google'}
           variant="secondary"

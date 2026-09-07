@@ -10,9 +10,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.asepo.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Asepo uses your camera to scan recipe cards and cookbook pages.",
-        "NSPhotoLibraryUsageDescription": "Asepo needs access to your photos to import a recipe from a screenshot."
+        "NSPhotoLibraryUsageDescription": "Asepo needs access to your photos to import a recipe from a screenshot.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -30,6 +32,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
+      "expo-image",
       [
         "expo-splash-screen",
         {

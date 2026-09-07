@@ -1,7 +1,10 @@
 import type { Session, User } from '@supabase/supabase-js';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
@@ -21,6 +24,7 @@ type AuthStore = {
   loading: boolean;
   signUpWithEmail: (email: string, password: string) => Promise<AuthResult>;
   signInWithEmail: (email: string, password: string) => Promise<AuthResult>;
+  signInWithApple: () => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signOut: () => Promise<void>;
   /** Permanently deletes the account — recipes, cookbooks, grocery list, and
@@ -67,6 +71,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithEmail = async (email: string, password: string): Promise<AuthResult> => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     return { error: error?.message ?? null };
+  };
+
+  const signInWithApple = async (): Promise<AuthResult> => {
+    if (Platform.OS !== 'ios') return { error: 'Sign in with Apple is only available on iOS' };
+
+    try {
+      // Apple receives the hash while Supabase receives the original nonce,
+      // allowing Supabase to verify that the ID token belongs to this request.
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+
+      if (!credential.identityToken) return { error: 'Apple sign-in did not return an identity token' };
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce: rawNonce,
+      });
+      if (error) return { error: error.message };
+
+      // Apple only supplies the name on the first authorization. Save it while
+      // it is available so it survives later sign-ins.
+      const fullName = credential.fullName
+        ? AppleAuthentication.formatFullName(credential.fullName, 'default').trim()
+        : '';
+      if (fullName) await supabase.auth.updateUser({ data: { full_name: fullName } });
+
+      return { error: null };
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ERR_REQUEST_CANCELED') {
+        return { error: null };
+      }
+      return { error: error instanceof Error ? error.message : 'Could not sign in with Apple' };
+    }
   };
 
   /**
@@ -145,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signUpWithEmail,
     signInWithEmail,
+    signInWithApple,
     signInWithGoogle,
     signOut,
     deleteAccount,
