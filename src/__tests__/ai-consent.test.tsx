@@ -5,7 +5,7 @@ import AiConsent from '@/app/ai-consent';
 import { AsepoThemeProvider } from '@/theme/theme-context';
 
 /**
- * This screen is a privacy guarantee, not decoration: nothing reaches kie.ai
+ * This screen is a privacy guarantee, not decoration: nothing reaches OpenAI
  * until someone accepts here. The behaviour that matters is which answer sets
  * consent and where each entry point returns to — declining from an import
  * must also drop the queued source, or the next screen would send it anyway.
@@ -58,7 +58,7 @@ describe('disclosure', () => {
 
     // The screen previously promised imports only, while nutrition and
     // healthify shipped saved recipes to the same processor.
-    expect(view.getAllByText(/kie\.ai/).length).toBeGreaterThan(0);
+    expect(view.getAllByText(/OpenAI/).length).toBeGreaterThan(0);
     expect(view.getByText(/Nutrition estimates and .Make it healthier./)).toBeTruthy();
     expect(view.getByText(/including for recipes you typed in yourself/)).toBeTruthy();
   });

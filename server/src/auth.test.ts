@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Request } from 'express';
 
-import { authenticate, isAuthFailure } from './auth.js';
+import { authenticate, authenticateOrGuest, isAuthFailure } from './auth.js';
 
 /**
  * The gate in front of everything that spends money.
@@ -17,8 +17,15 @@ import { authenticate, isAuthFailure } from './auth.js';
  */
 
 /** Minimal stand-in for the one method authenticate() reads. */
-const requestWith = (authorization?: string): Request =>
-  ({ header: (name: string) => (name.toLowerCase() === 'authorization' ? authorization : undefined) }) as
+const requestWith = (authorization?: string, guestId?: string): Request =>
+  ({
+    header: (name: string) =>
+      name.toLowerCase() === 'authorization'
+        ? authorization
+        : name.toLowerCase() === 'x-asepo-guest-id'
+          ? guestId
+          : undefined,
+  }) as
     unknown as Request;
 
 describe('a caller with no usable credential', () => {
@@ -63,5 +70,23 @@ describe('a caller with no usable credential', () => {
     assert.ok(isAuthFailure(result));
     assert.equal(result.status, 401);
     assert.notEqual(result.status, 503);
+  });
+});
+
+describe('guest access', () => {
+  it('accepts a stable installation UUID', async () => {
+    const id = '123e4567-e89b-42d3-a456-426614174000';
+    const result = await authenticateOrGuest(requestWith(undefined, id));
+
+    assert.ok(!isAuthFailure(result));
+    assert.equal(result.userId, `guest:${id}`);
+  });
+
+  it('rejects a missing or invented short guest ID', async () => {
+    for (const id of [undefined, '', 'guest-1']) {
+      const result = await authenticateOrGuest(requestWith(undefined, id));
+      assert.ok(isAuthFailure(result));
+      assert.equal(result.status, 401);
+    }
   });
 });

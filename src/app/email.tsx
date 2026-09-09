@@ -17,13 +17,15 @@ export default function EmailAuth() {
   const c = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signUpWithEmail, signInWithEmail } = useAuth();
+  const { signUpWithEmail, signInWithEmail, verifyEmailOtp, resendSignupOtp } = useAuth();
 
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState('');
 
   const isSignIn = mode === 'signin';
 
@@ -47,11 +49,133 @@ export default function EmailAuth() {
       toast.show(error);
       return;
     }
-    if (!isSignIn) {
-      toast.show('Check your email to confirm your account');
+    if (isSignIn) {
+      router.push('/paywall');
+      return;
     }
-    router.push('/paywall');
+
+    setAwaitingCode(true);
+    toast.show('We sent a 6-digit code to your email');
   };
+
+  const confirmCode = async () => {
+    if (!/^\d{6}$/.test(code.trim())) {
+      toast.show('Enter the 6-digit code from your email');
+      return;
+    }
+    if (submitting) return;
+    setSubmitting(true);
+    const { error } = await verifyEmailOtp(email, code);
+    setSubmitting(false);
+    if (error) {
+      toast.show(error);
+      return;
+    }
+    router.replace('/paywall');
+  };
+
+  if (awaitingCode) {
+    return (
+      <Screen>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingTop: insets.top + 28,
+            paddingBottom: insets.bottom + 16,
+          }}>
+          <Text style={{ fontSize: 27, lineHeight: 34, fontWeight: '700', color: c.text }}>
+            Check your email
+          </Text>
+          <Text style={{ marginTop: 6, fontSize: 14, lineHeight: 21, color: c.textSec }}>
+            Enter the 6-digit code sent to {email.trim()}.
+          </Text>
+
+          <View style={{ marginTop: 28 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: c.textSec, marginBottom: 8 }}>
+              Confirmation code
+            </Text>
+            <View style={{ position: 'relative', flexDirection: 'row', gap: 8 }}>
+              {Array.from({ length: 6 }, (_, index) => {
+                const digit = code[index] ?? '';
+                const active = code.length === index || (code.length === 6 && index === 5);
+
+                return (
+                  <View
+                    key={index}
+                    pointerEvents="none"
+                    style={{
+                      flex: 1,
+                      height: 56,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: c.inputBg,
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? c.accent : c.border,
+                      borderRadius: radius.md,
+                    }}>
+                    <Text style={{ fontSize: 24, lineHeight: 30, fontWeight: '700', color: c.text }}>
+                      {digit}
+                    </Text>
+                  </View>
+                );
+              })}
+              <TextInput
+                accessibilityLabel="Six-digit confirmation code"
+                value={code}
+                onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
+                maxLength={6}
+                autoFocus
+                caretHidden
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                  opacity: 0.01,
+                }}
+              />
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={async () => {
+              if (submitting) return;
+              setSubmitting(true);
+              const { error } = await resendSignupOtp(email);
+              setSubmitting(false);
+              toast.show(error ?? 'A new code has been sent');
+            }}
+            style={{ alignSelf: 'center', marginTop: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: c.accent }}>Resend code</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setCode('');
+              setAwaitingCode(false);
+            }}
+            style={{ alignSelf: 'center', marginTop: 16 }}>
+            <Text style={{ fontSize: 14, color: c.textSec }}>Use a different email</Text>
+          </Pressable>
+
+          <View style={{ flex: 1 }} />
+          <Button
+            title={submitting ? 'Confirming…' : 'Confirm account'}
+            onPress={confirmCode}
+            style={submitting ? { opacity: 0.7 } : undefined}
+          />
+        </KeyboardAvoidingView>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>

@@ -48,6 +48,20 @@ export async function authenticate(req: Request): Promise<Caller | AuthFailure> 
 }
 
 /**
+ * Import and suggestion routes also support guest mode. The opaque install ID
+ * scopes jobs and rate limits without pretending that it is an account.
+ */
+export async function authenticateOrGuest(req: Request): Promise<Caller | AuthFailure> {
+  if (bearerToken(req)) return authenticate(req);
+
+  const guestId = req.header('x-asepo-guest-id')?.trim() ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(guestId)) {
+    return { status: 401, error: 'A valid account or guest installation is required' };
+  }
+  return { userId: `guest:${guestId}` };
+}
+
+/**
  * A valid session *and* Pro. Layered on authenticate so there is one place
  * that decides what a valid session is.
  *

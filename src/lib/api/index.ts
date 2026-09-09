@@ -2,6 +2,7 @@ import { fixtureApi } from '@/lib/api/fixtures';
 import { createHttpApi } from '@/lib/api/http';
 import type { RecipeApi } from '@/lib/api/types';
 import { supabase } from '@/lib/supabase';
+import { getGuestId } from '@/lib/guest-id';
 
 export * from '@/lib/api/types';
 export { ApiError } from '@/lib/api/http';
@@ -26,7 +27,7 @@ const currentAccessToken = async (): Promise<string | null> => {
   return data.session?.access_token ?? null;
 };
 
-export const api: RecipeApi = baseUrl ? createHttpApi(baseUrl, currentAccessToken) : fixtureApi;
+export const api: RecipeApi = baseUrl ? createHttpApi(baseUrl, currentAccessToken, getGuestId) : fixtureApi;
 
 /** True when running on sample data, so the UI can say so honestly. */
 export const isOffline = !baseUrl;

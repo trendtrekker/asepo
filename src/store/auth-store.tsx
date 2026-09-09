@@ -24,6 +24,8 @@ type AuthStore = {
   loading: boolean;
   signUpWithEmail: (email: string, password: string) => Promise<AuthResult>;
   signInWithEmail: (email: string, password: string) => Promise<AuthResult>;
+  verifyEmailOtp: (email: string, token: string) => Promise<AuthResult>;
+  resendSignupOtp: (email: string) => Promise<AuthResult>;
   signInWithApple: () => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signOut: () => Promise<void>;
@@ -70,6 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string): Promise<AuthResult> => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    return { error: error?.message ?? null };
+  };
+
+  const verifyEmailOtp = async (email: string, token: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: token.trim(),
+      type: 'signup',
+    });
+    return { error: error?.message ?? null };
+  };
+
+  const resendSignupOtp = async (email: string): Promise<AuthResult> => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+    });
     return { error: error?.message ?? null };
   };
 
@@ -193,6 +212,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signUpWithEmail,
     signInWithEmail,
+    verifyEmailOtp,
+    resendSignupOtp,
     signInWithApple,
     signInWithGoogle,
     signOut,

@@ -6,7 +6,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useToast } from '@/components/toast';
-import { Button, SheetHandle } from '@/components/ui';
+import { SheetHandle } from '@/components/ui';
 import { ADD_TILES } from '@/data/sample';
 import { importGate, type ImportMethodId } from '@/lib/import-methods';
 import { safeBack } from '@/lib/navigation';
@@ -170,8 +170,6 @@ export default function AddRecipeSheet() {
     }
   };
 
-  const urlLocked = isSignedIn && unlockedMethod !== 'all' && unlockedMethod !== 'url';
-
   return (
     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
       {/* Scrim — tapping outside dismisses. */}
@@ -203,18 +201,6 @@ export default function AddRecipeSheet() {
           // Avoids a flash of "Sign in" for someone who actually has a valid
           // session — the initial Supabase session check hasn't resolved yet.
           <View style={{ flex: 1 }} />
-        ) : !isSignedIn ? (
-          <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24, alignItems: 'center' }}>
-            <Text style={{ fontSize: 15, color: c.textSec, textAlign: 'center', lineHeight: 21 }}>
-              Sign in to import and save recipes — from a link, a photo, a dish name, or an AI
-              suggestion.
-            </Text>
-            <Button
-              title="Sign in"
-              onPress={() => router.push('/email')}
-              style={{ marginTop: 20, alignSelf: 'stretch' }}
-            />
-          </View>
         ) : (
           <>
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
@@ -261,7 +247,6 @@ export default function AddRecipeSheet() {
                   borderRadius: 14,
                   paddingLeft: 16,
                   padding: 4,
-                  opacity: urlLocked ? 0.5 : 1,
                 }}>
                 <TextInput
                   value={url}
@@ -274,7 +259,7 @@ export default function AddRecipeSheet() {
                   style={{ flex: 1, fontSize: 15, color: c.text, paddingVertical: 12 }}
                 />
                 <Pressable
-                  onPress={urlLocked ? () => gate('url') : onFieldAction}
+                  onPress={onFieldAction}
                   accessibilityRole="button"
                   style={{
                     backgroundColor: c.accent,
@@ -283,15 +268,13 @@ export default function AddRecipeSheet() {
                     paddingHorizontal: 16,
                   }}>
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                    {urlLocked ? 'Pro' : url.trim() ? 'Import' : 'Paste'}
+                    {url.trim() ? 'Import' : 'Paste'}
                   </Text>
                 </Pressable>
               </View>
 
               <Text style={{ marginTop: 8, fontSize: 12.5, color: c.textSec }}>
-                {urlLocked
-                  ? 'Free accounts get one import method — this one is part of Asepo Pro'
-                  : 'Works with TikTok, Instagram, YouTube, Pinterest, and any recipe site'}
+                Works with TikTok, Instagram, YouTube, Pinterest, and any recipe site
               </Text>
             </View>
 
@@ -302,7 +285,6 @@ export default function AddRecipeSheet() {
               }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                 {ADD_TILES.map((tile) => {
-                  const locked = unlockedMethod !== 'all' && unlockedMethod !== tile.id;
                   return (
                     <Pressable
                       key={tile.id}
@@ -316,7 +298,6 @@ export default function AddRecipeSheet() {
                         paddingHorizontal: 16,
                         borderRadius: 16,
                         backgroundColor: c.chipBg,
-                        opacity: locked ? 0.55 : 1,
                       }}>
                       <View
                         style={{
@@ -335,17 +316,6 @@ export default function AddRecipeSheet() {
                           }}>
                           <Text style={{ fontSize: 17, color: c.text }}>{TILE_ICONS[tile.icon]}</Text>
                         </View>
-                        {locked ? (
-                          <View
-                            style={{
-                              paddingVertical: 3,
-                              paddingHorizontal: 7,
-                              borderRadius: 8,
-                              backgroundColor: c.accentTint,
-                            }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: c.accent }}>PRO</Text>
-                          </View>
-                        ) : null}
                       </View>
                       <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{tile.label}</Text>
                     </Pressable>

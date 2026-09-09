@@ -241,6 +241,7 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
     throw new ExtractionError('That text is too short to be a recipe');
   }
 
+  let llmFailure: LlmError | null = null;
   if (isLlmConfigured()) {
     try {
       const llm = await extractWithLlm(text);
@@ -255,6 +256,11 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
       };
     } catch (e) {
       if (!(e instanceof LlmError)) throw e;
+      llmFailure = e;
+      // Do not log the pasted recipe itself: it is user content. The model's
+      // diagnostic is enough to distinguish rejection, malformed JSON,
+      // provider configuration, and network failures in Render logs.
+      console.warn(`[paste import] AI extraction failed: ${e.message}`);
     }
   }
 
@@ -270,7 +276,11 @@ export async function extractFromText(text: string): Promise<ExtractedRecipe> {
     };
   }
 
-  throw new ExtractionError('Could not find a recipe in that text');
+  // Preserve model feedback only when it was deliberately written for the
+  // person importing. Provider diagnostics remain server-only.
+  throw new ExtractionError(
+    llmFailure?.userSafe ? llmFailure.message : 'Could not find a recipe in that text'
+  );
 }
 
 /**

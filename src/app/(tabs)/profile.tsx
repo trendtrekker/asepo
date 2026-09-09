@@ -228,7 +228,7 @@ export default function Profile() {
           title="Privacy"
           footer={
             aiConsentGiven
-              ? 'Imports, nutrition estimates, and “Make it healthier” send that recipe to our AI partner, kie.ai. Nothing else on your device is shared.'
+              ? 'Imports, nutrition estimates, and “Make it healthier” send that recipe to our AI partner, OpenAI. Nothing else on your device is shared.'
               : 'Importing, nutrition estimates, and “Make it healthier” are paused until you turn this back on — each one needs the recipe sent to our AI partner.'
           }>
           <Row label="AI features">

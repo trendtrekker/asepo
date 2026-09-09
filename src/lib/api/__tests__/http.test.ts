@@ -94,6 +94,19 @@ describe('authentication', () => {
 
     expect(lastHeaders().Authorization).toBeUndefined();
   });
+
+  it('identifies a signed-out installation on guest-enabled API calls', async () => {
+    const guestApi = createHttpApi(
+      'http://test.local',
+      async () => null,
+      async () => '123e4567-e89b-42d3-a456-426614174000'
+    );
+    respondWith({ suggestions: [] });
+    await guestApi.suggestMeals('breakfast');
+
+    expect(lastHeaders()['X-Asepo-Guest-ID']).toBe('123e4567-e89b-42d3-a456-426614174000');
+    expect(lastHeaders().Authorization).toBeUndefined();
+  });
 });
 
 describe('network failures', () => {

@@ -18,7 +18,7 @@ import {
 } from '@/data/sample';
 import { api, type ExtractedRecipe, type ImportSource } from '@/lib/api';
 import { addIngredient, type GroceryItem } from '@/lib/grocery';
-import { pickUnlockedMethod, type ImportMethodId } from '@/lib/import-methods';
+import type { ImportMethodId } from '@/lib/import-methods';
 import { clearOnboarded } from '@/lib/onboarding';
 import { reconcilePlanNotifications } from '@/lib/plan-notifications';
 import { clearState, loadState, saveState } from '@/lib/storage';
@@ -183,11 +183,7 @@ type Store = {
   isPro: boolean;
   setPro: (v: boolean) => void;
 
-  /**
-   * "Add a recipe" is registered-only. Signed-in free accounts get exactly
-   * one import method — 'all' for Pro, null for a signed-out guest (nothing
-   * usable until they sign in).
-   */
+  /** Every import method is available; free plans share a three-import limit. */
   isSignedIn: boolean;
   unlockedMethod: ImportMethodId | 'all' | null;
   /**
@@ -253,11 +249,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [purchases.configured, purchases.isPro]);
 
   const isSignedIn = Boolean(user);
-  const unlockedMethod = useMemo<ImportMethodId | 'all' | null>(() => {
-    if (!user) return null;
-    if (isPro) return 'all';
-    return pickUnlockedMethod(user.id);
-  }, [user, isPro]);
+  const unlockedMethod: ImportMethodId | 'all' | null = 'all';
 
   /**
    * Search used to show four invented "recent searches" from sample data, so

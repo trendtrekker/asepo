@@ -111,8 +111,13 @@ const POLL_TIMEOUT_MS = 120_000;
  * See index.ts for the real wiring.
  */
 export type AccessTokenProvider = () => Promise<string | null>;
+export type GuestIdProvider = () => Promise<string>;
 
-export function createHttpApi(baseUrl: string, getAccessToken: AccessTokenProvider): RecipeApi {
+export function createHttpApi(
+  baseUrl: string,
+  getAccessToken: AccessTokenProvider,
+  getGuestId?: GuestIdProvider
+): RecipeApi {
   const base = baseUrl.replace(/\/$/, '');
 
   /**
@@ -127,9 +132,14 @@ export function createHttpApi(baseUrl: string, getAccessToken: AccessTokenProvid
    */
   const authed = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
     const token = await getAccessToken();
+    const guestId = token ? null : await getGuestId?.();
     return request<T>(base, path, {
       ...init,
-      headers: { ...init.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: {
+        ...init.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(guestId ? { 'X-Asepo-Guest-ID': guestId } : {}),
+      },
     });
   };
 

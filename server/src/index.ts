@@ -4,7 +4,8 @@ import cors from 'cors';
 import express from 'express';
 
 import { createAdminRouter } from './admin/routes.js';
-import { authenticate, authenticatePro, isAuthFailure } from './auth.js';
+import { authenticate, authenticateOrGuest, authenticatePro, isAuthFailure } from './auth.js';
+import { imageCacheInput, readCache, writeCache, type CacheKind } from './cache.js';
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
 import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError, suggestMeals } from './llm.js';
@@ -15,17 +16,17 @@ import { supabaseAdmin } from './supabase-admin.js';
 /**
  * Asepo backend. Implements the contract the app expects in src/lib/api/http.ts.
  *
- * Every route below except /health and /recipes needs a bearer token — the
- * access token of the caller's own Supabase session. Anything that spends
- * money is additionally rate limited per account. Both matter because
+ * Import, suggestion and image routes accept either a session or a stable
+ * guest-installation ID. Pro and account routes require a session. Anything
+ * that spends money is additionally rate limited per caller. This matters because
  * EXPO_PUBLIC_API_URL ships inside the app bundle, so this address is public
  * the moment the app is:
  *
- *   POST /import        -> { taskId, labels }   auth, rate limited
- *   GET  /import/:id    -> { status, step, label, recipe?, error? }   auth, own job only
- *   POST /suggest-meals -> { suggestions: [{ title, description }] }  auth, rate limited
- *   POST /images        -> { taskId, status }   auth, rate limited
- *   GET  /images/:id    -> { taskId, status, url?, error? }   auth, own job only
+ *   POST /import        -> { taskId, labels }   account/guest, rate limited
+ *   GET  /import/:id    -> { status, step, label, recipe?, error? }   account/guest, own job only
+ *   POST /suggest-meals -> { suggestions: [{ title, description }] }  account/guest, rate limited
+ *   POST /images        -> { taskId, status }   account/guest, rate limited
+ *   GET  /images/:id    -> { taskId, status, url?, error? }   account/guest, own job only
  *   POST /healthify     -> { ingredients, instructions, summary }  Pro, rate limited
  *   POST /nutrition     -> { calories, protein, carbs, fat }       Pro, rate limited
  *   DELETE /account     -> 204, auth
@@ -68,6 +69,7 @@ type ImageJob = {
   error?: string;
   createdAt: number;
   userId: string;
+  cacheInput?: string;
 };
 
 const importJobs = new Map<string, ImportJob>();
@@ -110,7 +112,7 @@ async function gate(
   limiter: ReturnType<typeof createRateLimiter>,
   options: { pro?: boolean } = {}
 ): Promise<{ userId: string } | null> {
-  const caller = options.pro ? await authenticatePro(req) : await authenticate(req);
+  const caller = options.pro ? await authenticatePro(req) : await authenticateOrGuest(req);
   if (isAuthFailure(caller)) {
     res.status(caller.status).json({ error: caller.error });
     return null;
@@ -216,8 +218,26 @@ app.post('/import', async (req, res) => {
     try {
       advance(0);
 
-      let recipe: ExtractedRecipe;
+      // Share only public URLs and generic dish ideas. Pasted text and photos
+      // may contain private material, so they deliberately bypass this cache.
+      let cacheKind: CacheKind | null = null;
+      let cacheInput: string | null = null;
       if (source.kind === 'url' && source.url) {
+        cacheKind = 'url';
+        cacheInput = source.url;
+      } else if (source.kind === 'idea' && source.text) {
+        cacheKind = 'idea';
+        cacheInput = source.text;
+      }
+
+      const cached = cacheKind && cacheInput
+        ? await readCache<ExtractedRecipe>(cacheKind, cacheInput)
+        : null;
+
+      let recipe: ExtractedRecipe;
+      if (cached) {
+        recipe = cached;
+      } else if (source.kind === 'url' && source.url) {
         recipe = await extractFromUrl(source.url);
       } else if (source.kind === 'text' && source.text) {
         recipe = await extractFromText(source.text);
@@ -242,7 +262,7 @@ app.post('/import', async (req, res) => {
       // — a TikTok thumbnail carries x-signature and x-expires roughly two days
       // out — so storing the original would leave every imported recipe
       // pictureless within days. Same reason we re-host kie.ai's output.
-      if (recipe.imageUrl) {
+      if (recipe.imageUrl && !cached) {
         try {
           // A photo import's "imageUrl" is the base64 data: URL the phone sent
           // us directly — nothing to fetch, just write the bytes we already have.
@@ -253,6 +273,10 @@ app.post('/import', async (req, res) => {
         } catch {
           delete recipe.imageUrl;
         }
+      }
+
+      if (!cached && cacheKind && cacheInput) {
+        await writeCache(cacheKind, cacheInput, recipe);
       }
 
       job.recipe = recipe;
@@ -310,7 +334,9 @@ app.post('/suggest-meals', async (req, res) => {
   if (!isLlmConfigured()) return res.status(503).json({ error: 'Meal suggestions are not configured' });
 
   try {
-    const suggestions = await suggestMeals(prompt);
+    const cached = await readCache<Awaited<ReturnType<typeof suggestMeals>>>('suggestion', prompt);
+    const suggestions = cached ?? await suggestMeals(prompt);
+    if (!cached) await writeCache('suggestion', prompt, suggestions);
     res.json({ suggestions });
   } catch (e) {
     if (e instanceof LlmError && e.userSafe) {
@@ -338,7 +364,14 @@ app.post('/images', async (req, res) => {
   if (!title) return res.status(400).json({ status: 'failed', error: 'title is required' });
 
   const id = newId();
-  imageJobs.set(id, { status: 'pending', createdAt: Date.now(), userId: caller.userId });
+  const cacheInput = imageCacheInput({ title, cuisine, ingredients });
+  const cached = await readCache<{ url: string }>('image', cacheInput);
+  if (cached?.url) {
+    imageJobs.set(id, { status: 'ready', url: cached.url, createdAt: Date.now(), userId: caller.userId });
+    return res.json({ taskId: id, status: 'ready', url: cached.url });
+  }
+
+  imageJobs.set(id, { status: 'pending', createdAt: Date.now(), userId: caller.userId, cacheInput });
 
   try {
     const kieTaskId = await startImageGeneration(imagePromptFor({ title, cuisine, ingredients }));
@@ -376,6 +409,7 @@ app.get('/images/:id', async (req, res) => {
       // Copy to our own storage before kie.ai expires the original.
       job.url = await storeImage(status.urls[0]);
       job.status = 'ready';
+      if (job.cacheInput) await writeCache('image', job.cacheInput, { url: job.url });
     } else if (status.status === 'failed') {
       job.status = 'failed';
       job.error = status.error;

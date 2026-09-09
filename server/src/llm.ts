@@ -99,7 +99,9 @@ Return ONLY a JSON object, no prose and no markdown fence, shaped exactly:
 }
 
 Rules:
-- "isRecipe" is false if the text is not a cooking recipe. Then other fields may be empty.
+- "isRecipe" is false only if the text contains no usable cooking information.
+  Treat informal notes, prose recipes, ingredient lists, and copied social captions as recipes
+  when they contain enough information to identify a dish or prepare food.
 - Split each ingredient into quantity, unit and name. Use "" when a part is absent.
   "2 cups flour" -> {"qty":"2","unit":"cups","name":"flour"}
   "a handful of basil" -> {"qty":"","unit":"","name":"a handful of basil"}

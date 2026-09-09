@@ -82,12 +82,12 @@ export default function AiConsent() {
 
         <Text style={{ marginTop: 14, fontSize: 15, lineHeight: 22, color: c.textSec }}>
           When you import a recipe — a photo, a link, pasted text, or a dish name — Asepo sends
-          that content to our AI processing partner, kie.ai, to identify it and pull out the
+          that content to our AI processing partner, OpenAI, to identify it and pull out the
           ingredients and steps.
         </Text>
         <Text style={{ marginTop: 12, fontSize: 15, lineHeight: 22, color: c.textSec }}>
           Nutrition estimates and “Make it healthier” send that recipe’s title, ingredients, and
-          steps to kie.ai too — including for recipes you typed in yourself.
+          steps to OpenAI too — including for recipes you typed in yourself.
         </Text>
         <Text style={{ marginTop: 12, fontSize: 15, lineHeight: 22, color: c.textSec }}>
           Only the recipe you’re working with is shared — never your whole library, your account
