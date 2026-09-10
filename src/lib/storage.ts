@@ -20,6 +20,8 @@ export type PersistedState = {
   plan: unknown[];
   onboarding: unknown;
   importsUsed: number;
+  /** When this installation's three-day free access began. */
+  freeAccessStartedAt?: string;
   isPro: boolean;
   /** Optional so a state saved before this field existed still loads. */
   profileName?: string;

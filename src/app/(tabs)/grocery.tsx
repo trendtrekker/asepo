@@ -3,7 +3,9 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedCheckbox } from '@/components/animated-checkbox';
+import { RecipeImage } from '@/components/recipe-image';
 import { EmptyIllustration, Screen } from '@/components/ui';
+import type { Recipe } from '@/data/sample';
 import { groupByMeal, type GroceryItem } from '@/lib/grocery';
 import { useStore } from '@/store/app-store';
 import { useColors } from '@/theme/theme-context';
@@ -14,6 +16,7 @@ export default function Grocery() {
   const insets = useSafeAreaInsets();
   const {
     grocery,
+    recipes,
     toggleGroceryItem,
     removeGroceryItem,
     addManualGroceryItem,
@@ -21,10 +24,14 @@ export default function Grocery() {
   } = useStore();
 
   const [draft, setDraft] = useState('');
+  const [openRecipe, setOpenRecipe] = useState<string | null>(null);
 
   const unchecked = grocery.filter((i) => !i.checked);
   const checked = grocery.filter((i) => i.checked);
   const sections = groupByMeal(unchecked).map((s) => ({ label: s.meal, items: s.items }));
+  const recipeSections = sections.filter((section) => section.label !== 'Added by hand');
+  const manualSection = sections.find((section) => section.label === 'Added by hand');
+  const selectedSection = recipeSections.find((section) => section.label === openRecipe);
 
   const submit = () => {
     const v = draft.trim();
@@ -81,8 +88,8 @@ export default function Grocery() {
           </View>
         ) : null}
 
-        {sections.map((section) => (
-          <View key={section.label} style={{ marginBottom: 22 }}>
+        {recipeSections.length ? (
+          <View style={{ marginBottom: 22 }}>
             <Text
               style={{
                 fontSize: 12,
@@ -92,18 +99,83 @@ export default function Grocery() {
                 letterSpacing: 0.6,
                 marginBottom: 8,
               }}>
-              {section.label} · {section.items.length}
+              Recipes · tap to reveal ingredients
             </Text>
-            {section.items.map((item) => (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {recipeSections.map((section, index) => {
+                const position = index % 5;
+                const featured = position === 0;
+                const wide = position === 1 || position === 4;
+                const recipe = recipes.find((candidate) => candidate.title === section.label);
+                return (
+                  <View
+                    key={section.label}
+                    style={{ width: featured ? '100%' : wide ? '57%' : '37%', flexGrow: 1 }}>
+                    <GroceryRecipeTile
+                      label={section.label}
+                      count={section.items.length}
+                      recipe={recipe}
+                      featured={featured}
+                      tall={position === 1 || position === 3}
+                      selected={openRecipe === section.label}
+                      onPress={() =>
+                        setOpenRecipe((current) => current === section.label ? null : section.label)
+                      }
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {selectedSection ? (
+          <View style={{ marginBottom: 22 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: c.accent,
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+                marginBottom: 8,
+              }}>
+              {selectedSection.label} · {selectedSection.items.length}
+            </Text>
+            {selectedSection.items.map((item) => (
               <GroceryRow
-                key={`${section.label}-${item.id}`}
+                key={`${selectedSection.label}-${item.id}`}
                 item={item}
                 onToggle={() => toggleGroceryItem(item.id)}
                 onRemove={() => removeGroceryItem(item.id)}
               />
             ))}
           </View>
-        ))}
+        ) : null}
+
+        {manualSection ? (
+          <View style={{ marginBottom: 22 }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: c.textSec,
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+                marginBottom: 8,
+              }}>
+              Added by hand · {manualSection.items.length}
+            </Text>
+            {manualSection.items.map((item) => (
+              <GroceryRow
+                key={item.id}
+                item={item}
+                onToggle={() => toggleGroceryItem(item.id)}
+                onRemove={() => removeGroceryItem(item.id)}
+              />
+            ))}
+          </View>
+        ) : null}
 
         {checked.length ? (
           <View>
@@ -167,6 +239,69 @@ export default function Grocery() {
         </Pressable>
       </View>
     </Screen>
+  );
+}
+
+/** Image-only recipe tile. Ingredient rows stay hidden until this is opened. */
+function GroceryRecipeTile({
+  label,
+  count,
+  recipe,
+  featured,
+  tall,
+  selected,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  recipe?: Recipe;
+  featured: boolean;
+  tall: boolean;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  const height = featured ? 184 : tall ? 154 : 124;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${count} grocery ${count === 1 ? 'item' : 'items'}`}
+      accessibilityHint={selected ? 'Collapses ingredient list' : 'Reveals ingredient list'}
+      accessibilityState={{ expanded: selected }}
+      style={{
+        height,
+        borderRadius: 20,
+        overflow: 'hidden',
+        borderWidth: selected ? 3 : 1,
+        borderColor: selected ? c.accent : c.border,
+        backgroundColor: c.surface,
+      }}>
+      {recipe ? (
+        <RecipeImage recipe={recipe} glyph={featured ? 58 : 42} style={{ flex: 1 }} />
+      ) : (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.chipBg }}>
+          <Text style={{ fontSize: featured ? 54 : 40, fontWeight: '800', color: c.accent }}>
+            {label.trim().charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+      )}
+      <View
+        style={{
+          position: 'absolute',
+          right: 10,
+          bottom: 10,
+          minWidth: 28,
+          height: 28,
+          paddingHorizontal: 8,
+          borderRadius: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: selected ? c.accent : 'rgba(0,0,0,0.58)',
+        }}>
+        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>{count}</Text>
+      </View>
+    </Pressable>
   );
 }
 

@@ -7,7 +7,7 @@ import { AnimatedPressable } from '@/components/animated-pressable';
 import { FadeIn } from '@/components/fade-in';
 import { Refresh } from '@/components/icons';
 import { useAnimatedValue } from '@/lib/use-animated-value';
-import { RecipeCarouselCard } from '@/components/recipe-card';
+import { RecipeBentoCard } from '@/components/recipe-card';
 import { RecipeImage } from '@/components/recipe-image';
 import { useToast } from '@/components/toast';
 import { Button, Screen } from '@/components/ui';
@@ -224,8 +224,8 @@ export default function Home() {
           )}
         </FadeIn>
 
-        <Carousel title="Recently saved" recipes={recentlySaved} />
-        <Carousel title="Cook it again" recipes={cookItAgain} />
+        <BentoSection title="Recently saved" recipes={recentlySaved} />
+        <BentoSection title="Cook it again" recipes={cookItAgain} />
 
         {/* Week strip */}
         <View style={{ marginTop: 12, paddingHorizontal: 20 }}>
@@ -299,7 +299,12 @@ export default function Home() {
   );
 }
 
-function Carousel({ title, recipes }: { title: string; recipes: Recipe[] }) {
+/**
+ * A compact bento block for Home. Each section leads with a wider card,
+ * followed by varied smaller tiles. Recipes keeps the larger library grid;
+ * Home uses fewer cards so the week and account stats remain easy to reach.
+ */
+function BentoSection({ title, recipes }: { title: string; recipes: Recipe[] }) {
   const c = useColors();
   const router = useRouter();
   // A heading over an empty row reads as something failing to load. On a
@@ -307,20 +312,33 @@ function Carousel({ title, recipes }: { title: string; recipes: Recipe[] }) {
   // titles — better to show nothing until there's something to show.
   if (recipes.length === 0) return null;
   return (
-    <View style={{ marginTop: 24 }}>
-      <Text style={{ paddingHorizontal: 20, fontSize: 18, fontWeight: '700', color: c.text }}>
+    <View style={{ marginTop: 26, paddingHorizontal: 20 }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: c.text }}>
         {title}
       </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
-        {recipes.map((r, i) => (
-          <FadeIn key={r.id} delay={i * 40}>
-            <RecipeCarouselCard recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
-          </FadeIn>
-        ))}
-      </ScrollView>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingTop: 12 }}>
+        {recipes.slice(0, 5).map((r, index) => {
+          const position = index % 5;
+          const featured = position === 0;
+          const wide = position === 1 || position === 4;
+          return (
+            <View
+              key={r.id}
+              style={{ width: featured ? '100%' : wide ? '57%' : '37%', flexGrow: 1 }}>
+              <FadeIn delay={index * 40}>
+                <RecipeBentoCard
+                  recipe={r}
+                  featured={featured}
+                  tall={position === 1 || position === 3}
+                  onPress={() =>
+                    router.push({ pathname: '/recipe/[id]', params: { id: r.id } })
+                  }
+                />
+              </FadeIn>
+            </View>
+          );
+        })}
+      </View>
     </View>
   );
 }

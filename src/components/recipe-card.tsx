@@ -62,6 +62,51 @@ export function RecipeGridCard({
   );
 }
 
+/** Asymmetric image-led card used by the recipe library's bento grid. */
+export function RecipeBentoCard({
+  recipe,
+  featured = false,
+  tall = false,
+  onPress,
+}: {
+  recipe: Recipe;
+  featured?: boolean;
+  tall?: boolean;
+  onPress?: () => void;
+}) {
+  const c = useColors();
+  const height = featured ? 216 : tall ? 178 : 142;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${recipe.title}, ${metaLine(recipe)}`}
+      style={{ flex: 1, borderRadius: 20, overflow: 'hidden', backgroundColor: c.surface }}>
+      <RecipeImage recipe={recipe} glyph={featured ? 62 : 42} style={{ height }}>
+        <FavouriteBadge recipe={recipe} />
+        {featured ? (
+          <View
+            style={{
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              paddingHorizontal: 16, paddingTop: 35, paddingBottom: 14,
+              backgroundColor: 'rgba(0,0,0,0.48)',
+            }}>
+            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }} numberOfLines={2}>{recipe.title}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12.5, marginTop: 4 }}>{metaLine(recipe)}</Text>
+          </View>
+        ) : null}
+      </RecipeImage>
+      {!featured ? (
+        <View style={{ paddingHorizontal: 4, paddingTop: 9, paddingBottom: 7 }}>
+          <Text style={{ fontSize: tall ? 15.5 : 14.5, lineHeight: 19, fontWeight: '700', color: c.text }} numberOfLines={2}>{recipe.title}</Text>
+          <Text style={{ marginTop: 3, fontSize: 12, color: c.textSec }}>{metaLine(recipe)}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 /** Full-width row used in list view. */
 export function RecipeListRow({ recipe, onPress }: { recipe: Recipe; onPress?: () => void }) {
   const c = useColors();

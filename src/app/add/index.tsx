@@ -30,7 +30,7 @@ export default function AddRecipeSheet() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+  const { importsUsed, importLimit, freeAccessExpired, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
     useStore();
   const [url, setUrl] = useState('');
   const [detectedLink, setDetectedLink] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function AddRecipeSheet() {
    */
   const gate = (method: ImportMethodId): boolean => {
     if (!ready) return false;
-    const result = importGate({ method, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') {
       router.push('/email');
       return false;

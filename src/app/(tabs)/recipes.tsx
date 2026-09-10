@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GridIcon, Search, Sliders } from '@/components/icons';
-import { RecipeGridCard, RecipeListRow } from '@/components/recipe-card';
+import { RecipeBentoCard, RecipeListRow } from '@/components/recipe-card';
 import { EmptyIllustration, Screen } from '@/components/ui';
 import { SORT_OPTIONS } from '@/data/sample';
 import { applyChip, applyFilters, sortRecipes } from '@/lib/filter-recipes';
@@ -235,12 +235,16 @@ export default function Recipes() {
             </Text>
           </View>
         ) : view === 'grid' ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-            {recipes.map((r) => (
-              <View key={r.id} style={{ width: '47%', flexGrow: 1 }}>
-                <RecipeGridCard recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {recipes.map((r, index) => {
+              const position = index % 5;
+              const featured = position === 0;
+              const tall = position === 1 || position === 4;
+              return (
+              <View key={r.id} style={{ width: featured ? '100%' : position === 1 || position === 3 ? '55%' : '39%', flexGrow: 1 }}>
+                <RecipeBentoCard featured={featured} tall={tall} recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />
               </View>
-            ))}
+            );})}
           </View>
         ) : (
           recipes.map((r) => <RecipeListRow key={r.id} recipe={r} onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: r.id } })} />)

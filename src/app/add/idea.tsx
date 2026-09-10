@@ -20,7 +20,7 @@ export default function TypeAMeal() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+  const { importsUsed, importLimit, freeAccessExpired, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
     useStore();
   const [text, setText] = useState('');
 
@@ -30,11 +30,11 @@ export default function TypeAMeal() {
   // the initial session check is still in flight.
   useEffect(() => {
     if (authLoading) return;
-    const result = importGate({ method: 'idea', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method: 'idea', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') router.replace('/email');
     else if (result === 'locked') router.replace('/add/limit?reason=locked');
     // 'count' is left to submit() below, so typing isn't interrupted mid-way.
-  }, [authLoading, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, router]);
+  }, [authLoading, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired, router]);
 
   const submit = () => {
     const trimmed = text.trim();
@@ -42,7 +42,7 @@ export default function TypeAMeal() {
       toast.show('Type a dish first');
       return;
     }
-    const result = importGate({ method: 'idea', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method: 'idea', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') {
       router.replace('/email');
       return;

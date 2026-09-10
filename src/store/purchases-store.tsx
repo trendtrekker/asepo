@@ -1,4 +1,4 @@
-import type { CustomerInfo } from 'react-native-purchases';
+import type { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import {
@@ -20,6 +20,8 @@ const PRO_ENTITLEMENT = 'asepo_pro';
 type PurchasesStore = {
   configured: boolean;
   isPro: boolean;
+  packages: PurchasesPackage[];
+  purchasePackage: (pack: PurchasesPackage) => Promise<boolean>;
   showPaywall: () => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
   showCustomerCenter: () => Promise<void>;
@@ -28,6 +30,8 @@ type PurchasesStore = {
 const unavailablePurchases: PurchasesStore = {
   configured: false,
   isPro: false,
+  packages: [],
+  purchasePackage: async () => { throw new Error('Purchases are not configured yet'); },
   showPaywall: async () => {
     throw new Error('Purchases are not configured yet');
   },
@@ -47,6 +51,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [configured, setConfigured] = useState(false);
   const [isPro, setIsPro] = useState(false);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const configuredRef = useRef(false);
   const revenueCatUserRef = useRef<string | null>(null);
 
@@ -87,6 +92,8 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
 
       const customerInfo = await Purchases.getCustomerInfo();
       update(customerInfo);
+      const offerings = await Purchases.getOfferings();
+      if (!cancelled) setPackages(offerings.current?.availablePackages ?? []);
       if (!cancelled) setConfigured(true);
     })().catch((error) => {
       if (__DEV__) console.warn('[purchases] RevenueCat setup failed', error);
@@ -115,6 +122,14 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     return active;
   }, []);
 
+  const purchasePackage = useCallback(async (pack: PurchasesPackage) => {
+    if (!configuredRef.current) throw new Error('Purchases are not configured yet');
+    const { customerInfo } = await Purchases.purchasePackage(pack);
+    const active = hasPro(customerInfo);
+    setIsPro(active);
+    return active;
+  }, []);
+
   const showCustomerCenter = useCallback(async () => {
     if (!configuredRef.current) throw new Error('Purchases are not configured yet');
     await RevenueCatUI.presentCustomerCenter();
@@ -122,8 +137,8 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ configured, isPro, showPaywall, restorePurchases, showCustomerCenter }),
-    [configured, isPro, showPaywall, restorePurchases, showCustomerCenter]
+    () => ({ configured, isPro, packages, purchasePackage, showPaywall, restorePurchases, showCustomerCenter }),
+    [configured, isPro, packages, purchasePackage, showPaywall, restorePurchases, showCustomerCenter]
   );
 
   return <PurchasesContext.Provider value={value}>{children}</PurchasesContext.Provider>;

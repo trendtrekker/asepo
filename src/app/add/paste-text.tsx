@@ -21,7 +21,7 @@ export default function PasteText() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+  const { importsUsed, importLimit, freeAccessExpired, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
     useStore();
   const [text, setText] = useState('');
 
@@ -31,11 +31,11 @@ export default function PasteText() {
   // the initial session check is still in flight.
   useEffect(() => {
     if (authLoading) return;
-    const result = importGate({ method: 'paste', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method: 'paste', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') router.replace('/email');
     else if (result === 'locked') router.replace('/add/limit?reason=locked');
     // 'count' is left to submit() below, so pasting isn't interrupted mid-way.
-  }, [authLoading, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, router]);
+  }, [authLoading, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired, router]);
 
   const submit = () => {
     const trimmed = text.trim();
@@ -43,7 +43,7 @@ export default function PasteText() {
       toast.show('Paste a bit more — that looks too short to be a recipe');
       return;
     }
-    const result = importGate({ method: 'paste', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method: 'paste', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') {
       router.replace('/email');
       return;

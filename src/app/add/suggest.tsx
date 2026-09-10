@@ -28,7 +28,7 @@ export default function MealSuggestionScreen() {
   const toast = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importsUsed, importLimit, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
+  const { importsUsed, importLimit, freeAccessExpired, isPro, isSignedIn, unlockedMethod, authLoading, setPendingImportSource } =
     useStore();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,10 +42,10 @@ export default function MealSuggestionScreen() {
   // while the initial session check is still in flight.
   useEffect(() => {
     if (authLoading) return;
-    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed: 0, importLimit });
+    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') router.replace('/email');
     else if (result === 'locked') router.replace('/add/limit?reason=locked');
-  }, [authLoading, isSignedIn, unlockedMethod, isPro, importLimit, router]);
+  }, [authLoading, isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired, router]);
 
   const ask = async () => {
     const trimmed = prompt.trim();
@@ -66,7 +66,7 @@ export default function MealSuggestionScreen() {
   };
 
   const pick = (suggestion: MealSuggestion) => {
-    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit });
+    const result = importGate({ method: 'suggest', isSignedIn, unlockedMethod, isPro, importsUsed, importLimit, freeAccessExpired });
     if (result === 'signin') {
       router.replace('/email');
       return;

@@ -179,6 +179,8 @@ type Store = {
   /* subscription */
   importsUsed: number;
   importLimit: number;
+  freeAccessExpired: boolean;
+  freeAccessDaysLeft: number;
   recordImport: () => void;
   isPro: boolean;
   setPro: (v: boolean) => void;
@@ -237,6 +239,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [pendingImport, setPendingImport] = useState<ExtractedRecipe | null>(null);
   const [pendingImportSource, setPendingImportSource] = useState<ImportSource | null>(null);
   const [importsUsed, setImportsUsed] = useState(0);
+  const [freeAccessStartedAt, setFreeAccessStartedAt] = useState(() => new Date().toISOString());
+  const [freeAccessClock, setFreeAccessClock] = useState(() => Date.now());
   const [isPro, setPro] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [aiConsentGiven, setAiConsentGiven] = useState(false);
@@ -247,6 +251,11 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setPro(purchases.isPro), 0);
     return () => clearTimeout(timer);
   }, [purchases.configured, purchases.isPro]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setFreeAccessClock(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const isSignedIn = Boolean(user);
   const unlockedMethod: ImportMethodId | 'all' | null = 'all';
@@ -296,6 +305,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setPlan((saved.plan as PlanEntry[]) ?? []);
         setOnboarding(sanitizeOnboarding(saved.onboarding as Partial<Onboarding>));
         setImportsUsed(saved.importsUsed ?? 0);
+        setFreeAccessStartedAt(saved.freeAccessStartedAt ?? new Date().toISOString());
         setPro(saved.isPro ?? false);
         setProfileName(saved.profileName ?? '');
         setAiConsentGiven(saved.aiConsentGiven ?? false);
@@ -325,6 +335,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       plan,
       onboarding,
       importsUsed,
+      freeAccessStartedAt,
       isPro,
       profileName,
       aiConsentGiven,
@@ -339,6 +350,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     plan,
     onboarding,
     importsUsed,
+    freeAccessStartedAt,
     isPro,
     profileName,
     aiConsentGiven,
@@ -676,6 +688,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
       importsUsed,
       importLimit: 3,
+      freeAccessExpired: freeAccessClock - new Date(freeAccessStartedAt).getTime() >= 3 * 24 * 60 * 60 * 1000,
+      freeAccessDaysLeft: Math.max(0, Math.ceil((3 * 24 * 60 * 60 * 1000 - (freeAccessClock - new Date(freeAccessStartedAt).getTime())) / (24 * 60 * 60 * 1000))),
       recordImport: () => setImportsUsed((n) => n + 1),
       isPro,
       setPro,
@@ -694,6 +708,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           setFavorites({});
           setOnboarding(emptyOnboarding);
           setImportsUsed(0);
+          setFreeAccessStartedAt(new Date().toISOString());
           setPro(false);
           setProfileName('');
           setAiConsentGiven(false);
@@ -727,6 +742,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       grocery,
       plan,
       importsUsed,
+      freeAccessStartedAt,
+      freeAccessClock,
       isPro,
       isSignedIn,
       unlockedMethod,

@@ -24,4 +24,18 @@ describe('free import allowance', () => {
       ).toBeNull();
     }
   });
+
+  it('blocks free imports after the three-day access window', () => {
+    expect(
+      importGate({
+        method: 'scan',
+        isSignedIn: false,
+        unlockedMethod: null,
+        isPro: false,
+        importsUsed: 0,
+        importLimit: 3,
+        freeAccessExpired: true,
+      })
+    ).toBe('count');
+  });
 });

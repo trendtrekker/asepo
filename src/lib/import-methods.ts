@@ -19,9 +19,10 @@ export function importGate(opts: {
   isPro: boolean;
   importsUsed: number;
   importLimit: number;
+  freeAccessExpired?: boolean;
 }): ImportGateResult {
   // Guests and signed-in free accounts may use every import method. Their
   // shared allowance is enforced by the persisted importsUsed counter.
-  if (!opts.isPro && opts.importsUsed >= opts.importLimit) return 'count';
+  if (!opts.isPro && (opts.freeAccessExpired || opts.importsUsed >= opts.importLimit)) return 'count';
   return null;
 }
