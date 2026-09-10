@@ -1,4 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+
+const marketingAssets = ['brand-icon.png', 'favicon.png', 'importing.png', 'paywall-hero.jpg', 'plan-your-week.png', 'save-any-recipe.png', 'shop-smarter.png'];
+mkdirSync(new URL('../legal-site/assets/', import.meta.url), { recursive: true });
+for (const asset of marketingAssets) {
+  copyFileSync(new URL(`../assets/images/${asset}`, import.meta.url), new URL(`../legal-site/assets/${asset}`, import.meta.url));
+}
 
 const pages = [
   { slug: 'terms', title: 'Terms of Use' },
