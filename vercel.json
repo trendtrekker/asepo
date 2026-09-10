@@ -1,7 +1,10 @@
 {
-  "buildCommand": "npx expo export -p web",
-  "outputDirectory": "dist",
-  "framework": null,
+  "buildCommand": "node scripts/build-legal.mjs",
+  "outputDirectory": "legal-site",
   "cleanUrls": true,
-  "rewrites": [{ "source": "/:path*", "destination": "/" }]
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/privacy", "destination": "/privacy.html" }
+  ]
 }
