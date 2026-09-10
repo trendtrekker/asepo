@@ -1,11 +1,12 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Screen } from '@/components/ui';
 import { useToast } from '@/components/toast';
+import { PRIVACY_URL, TERMS_URL } from '@/lib/legal';
 import { useAuth } from '@/store/auth-store';
 import { useColors } from '@/theme/theme-context';
 
@@ -105,8 +106,14 @@ export default function SignIn() {
           color: c.textSec,
           textAlign: 'center',
         }}>
-        By continuing you agree to Asepo’s <Text style={{ color: c.accent }}>Terms</Text> and{' '}
-        <Text style={{ color: c.accent }}>Privacy Policy</Text>
+        By continuing you agree to Asepo’s{' '}
+        <Text accessibilityRole="link" onPress={() => void Linking.openURL(TERMS_URL)} style={{ color: c.accent }}>
+          Terms
+        </Text>{' '}
+        and{' '}
+        <Text accessibilityRole="link" onPress={() => void Linking.openURL(PRIVACY_URL)} style={{ color: c.accent }}>
+          Privacy Policy
+        </Text>
       </Text>
 
       <Pressable
