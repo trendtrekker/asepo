@@ -117,8 +117,15 @@ export default function Recipes() {
       {/* Filter chips */}
       <ScrollView
         horizontal
+        style={{ flexGrow: 0, flexShrink: 0, height: 62 }}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 4 }}>
+        contentContainerStyle={{
+          gap: 8,
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: 8,
+          alignItems: 'center',
+        }}>
         {FILTER_CHIPS.map((label) => {
           const active = chip === label;
           return (
@@ -128,12 +135,20 @@ export default function Recipes() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               style={{
-                paddingVertical: 9,
+                minHeight: 36,
                 paddingHorizontal: 14,
                 borderRadius: 18,
                 backgroundColor: active ? c.accent : c.chipBg,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}>
-              <Text style={{ fontSize: 13.5, fontWeight: '600', color: active ? '#fff' : c.text }}>
+              <Text
+                style={{
+                  fontSize: 13.5,
+                  lineHeight: 18,
+                  fontWeight: '600',
+                  color: active ? '#fff' : c.text,
+                }}>
                 {label}
               </Text>
             </Pressable>

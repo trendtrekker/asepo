@@ -32,6 +32,7 @@ export default function Grocery() {
   const recipeSections = sections.filter((section) => section.label !== 'Added by hand');
   const manualSection = sections.find((section) => section.label === 'Added by hand');
   const selectedSection = recipeSections.find((section) => section.label === openRecipe);
+  const visibleRecipeSections = selectedSection ? [selectedSection] : recipeSections;
 
   const submit = () => {
     const v = draft.trim();
@@ -102,9 +103,9 @@ export default function Grocery() {
               Recipes · tap to reveal ingredients
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {recipeSections.map((section, index) => {
+              {visibleRecipeSections.map((section, index) => {
                 const position = index % 5;
-                const featured = position === 0;
+                const featured = Boolean(selectedSection) || position === 0;
                 const wide = position === 1 || position === 4;
                 const recipe = recipes.find((candidate) => candidate.title === section.label);
                 return (
@@ -278,7 +279,29 @@ function GroceryRecipeTile({
         backgroundColor: c.surface,
       }}>
       {recipe ? (
-        <RecipeImage recipe={recipe} glyph={featured ? 58 : 42} style={{ flex: 1 }} />
+        <RecipeImage recipe={recipe} glyph={featured ? 58 : 42} style={{ flex: 1 }}>
+          <View
+            style={{
+              position: 'absolute',
+              left: 10,
+              right: 48,
+              bottom: 10,
+              alignItems: 'flex-start',
+            }}>
+            <View
+              style={{
+                maxWidth: '100%',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 12,
+                backgroundColor: 'rgba(0,0,0,0.62)',
+              }}>
+              <Text numberOfLines={2} style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>
+                {label}
+              </Text>
+            </View>
+          </View>
+        </RecipeImage>
       ) : (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.chipBg }}>
           <Text style={{ fontSize: featured ? 54 : 40, fontWeight: '800', color: c.accent }}>
