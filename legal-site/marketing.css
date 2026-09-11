@@ -3,3 +3,13 @@
 @media(max-width:800px){header nav{display:none}.hero,.how-grid,.pro-card{grid-template-columns:1fr}.hero{padding-top:130px;text-align:center}.hero label{margin:auto}.copy>p{margin:auto}.badges{justify-content:center}.hero-art{height:600px}.grid{grid-template-columns:1fr}.feature.tall{grid-row:auto;min-height:760px}.feature.tall img{height:440px}.how .heading{position:static}.pro-card>img{height:430px}.source{width:140px;padding:16px}.result{width:190px}.search-art{width:110px}}
 @media(max-width:520px){.shell{width:calc(100% - 28px)}.hero h1{font-size:53px}.hero-art{height:550px}.sun{width:315px;height:315px}.phone{width:260px}.screen{height:510px}.meal{height:145px}.badges{gap:0}.badges img{height:42px}.badges .play{height:62px;margin:-10px}.import-stage{height:730px}.import-phone{top:130px}.s1{top:0}.s2{top:60px}.result{bottom:0}.search-art{bottom:0}.feature>div{padding:30px}.pro-card>div{padding:40px 28px}footer>div{align-items:flex-start;flex-direction:column;gap:18px}.foot nav{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.floating,.ticker{animation:none}.reveal{opacity:1;transform:none;transition:none}}
+
+/* Current product screens in a near-bezel-free modern iPhone frame. */
+.phone{padding:3px;border:3px solid #3a3938;border-radius:52px;background:#090909;box-shadow:0 38px 70px #1c19173d,0 0 0 1px #ffffff70 inset;overflow:hidden}
+.phone:after{display:none}
+.phone:before{content:"";position:absolute;z-index:3;inset:3px;border:1px solid #ffffff26;border-radius:47px;pointer-events:none}
+.island{position:absolute;z-index:4;top:13px;left:50%;translate:-50%;width:74px;height:21px;border-radius:20px;background:#050505;box-shadow:0 1px 0 #ffffff18}
+.app-screen{width:100%;height:auto;aspect-ratio:740/1600;object-fit:cover;border-radius:46px}
+.feature img{width:76%;max-height:520px;object-fit:cover;object-position:top;margin:0 auto -8%;border-radius:34px 34px 0 0}
+.feature.tall img{width:88%;height:820px;max-height:none;object-fit:cover;object-position:top}
+@media(max-width:520px){.feature img{width:84%}.feature.tall img{width:92%}}
