@@ -62,13 +62,8 @@ export async function authenticateOrGuest(req: Request): Promise<Caller | AuthFa
 }
 
 /**
- * A valid session *and* Pro. Layered on authenticate so there is one place
- * that decides what a valid session is.
- *
- * The caveat from before still stands: profiles.is_pro is a synced client
- * preference that the account itself can write, so this cannot prove a
- * purchase — there is no billing yet for it to prove. What it does is make
- * these endpoints cost an account rather than nothing at all.
+ * A valid session and a current Pro entitlement. The entitlement columns are
+ * writable only by the trusted RevenueCat webhook and server-side admin.
  */
 export async function authenticatePro(req: Request): Promise<Caller | AuthFailure> {
   const caller = await authenticate(req);
@@ -77,10 +72,11 @@ export async function authenticatePro(req: Request): Promise<Caller | AuthFailur
   try {
     const { data: profile, error } = await supabaseAdmin()
       .from('profiles')
-      .select('is_pro')
+      .select('is_pro,pro_expires_at')
       .eq('id', caller.userId)
-      .single<{ is_pro: boolean }>();
-    if (error || !profile?.is_pro) return { status: 403, error: 'Asepo Pro required' };
+      .single<{ is_pro: boolean; pro_expires_at: string | null }>();
+    const expired = Boolean(profile?.pro_expires_at && Date.parse(profile.pro_expires_at) <= Date.now());
+    if (error || !profile?.is_pro || expired) return { status: 403, error: 'Asepo Pro required' };
     return caller;
   } catch (e) {
     console.error('[auth] could not read entitlement —', e);

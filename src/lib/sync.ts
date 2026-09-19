@@ -196,7 +196,6 @@ const profileToRow = (userId: string, p: ProfileSnapshot) => ({
   allergies: p.onboarding.allergies,
   custom_allergies: p.onboarding.customAllergies,
   goals: p.onboarding.goals,
-  is_pro: p.isPro,
   imports_used: p.importsUsed,
   updated_at: new Date().toISOString(),
 });

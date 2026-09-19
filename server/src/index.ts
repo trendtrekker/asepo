@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import { timingSafeEqual } from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 
@@ -81,6 +82,95 @@ app.use('/admin', express.urlencoded({ extended: true }));
 app.use('/admin', createAdminRouter({ importJobs, imageJobs }));
 
 const newId = () => Math.random().toString(36).slice(2, 12);
+
+/* ------------------------------------------------------------------ *
+ * RevenueCat subscription webhooks
+ * ------------------------------------------------------------------ */
+
+const SUPABASE_USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+app.post('/webhooks/revenuecat', async (req, res) => {
+  const expectedAuthorization = process.env.REVENUECAT_WEBHOOK_AUTHORIZATION?.trim();
+  if (!expectedAuthorization) {
+    res.status(503).json({ error: 'RevenueCat webhook is not configured' });
+    return;
+  }
+
+  const suppliedAuthorization = req.header('authorization') ?? '';
+  const expectedBytes = Buffer.from(expectedAuthorization);
+  const suppliedBytes = Buffer.from(suppliedAuthorization);
+  if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) {
+    res.sendStatus(401);
+    return;
+  }
+
+  const body = req.body as {
+    event?: {
+      id?: unknown;
+      type?: unknown;
+      event_timestamp_ms?: unknown;
+      app_user_id?: unknown;
+      original_app_user_id?: unknown;
+      aliases?: unknown;
+      entitlement_ids?: unknown;
+      expiration_at_ms?: unknown;
+    };
+  };
+  const event = body?.event;
+  const eventType = typeof event?.type === 'string' ? event.type : '';
+  const eventTimestamp = event?.event_timestamp_ms;
+  if (!event || typeof event.id !== 'string' || !eventType || typeof eventTimestamp !== 'number' || !Number.isFinite(eventTimestamp)) {
+    res.status(400).json({ error: 'Invalid RevenueCat event' });
+    return;
+  }
+
+  // RevenueCat's synthetic test event has a sample account ID and no real
+  // entitlement; acknowledge it without writing to the subscription table.
+  if (eventType === 'TEST') {
+    res.sendStatus(200);
+    return;
+  }
+
+  // Purchases made by guests can begin with an anonymous App User ID. Once
+  // they sign in, RevenueCat includes the account UUID in the aliases list.
+  const aliases = Array.isArray(event.aliases) ? event.aliases : [];
+  const userId = [event.app_user_id, ...aliases, event.original_app_user_id]
+    .find((candidate): candidate is string => typeof candidate === 'string' && SUPABASE_USER_ID.test(candidate));
+  if (!userId) {
+    // A guest purchase is still handled by the SDK on-device. There is no
+    // Supabase account to grant until RevenueCat associates the customer with
+    // the user's account ID.
+    res.sendStatus(200);
+    return;
+  }
+
+  const entitlementIds = Array.isArray(event.entitlement_ids) ? event.entitlement_ids : [];
+  const entitled = entitlementIds.includes('asepo_pro');
+  const expirationMs = event.expiration_at_ms;
+  const expiresAt = typeof expirationMs === 'number' && Number.isFinite(expirationMs)
+    ? new Date(expirationMs).toISOString()
+    : null;
+  const ended = eventType === 'EXPIRATION' || eventType === 'REFUND';
+  const isPro = entitled && !ended && expiresAt !== null && Date.parse(expiresAt) > Date.now();
+
+  try {
+    const { error } = await supabaseAdmin().rpc('apply_revenuecat_subscription_event', {
+      p_user_id: userId,
+      p_is_pro: isPro,
+      p_expires_at: expiresAt,
+      p_event_timestamp_ms: Math.trunc(eventTimestamp),
+    } as never);
+    if (error) {
+      console.error('[revenuecat] entitlement update failed', error.message);
+      res.status(500).json({ error: 'Could not update subscription access' });
+      return;
+    }
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('[revenuecat] webhook processing failed', error);
+    res.status(500).json({ error: 'Could not update subscription access' });
+  }
+});
 
 /* ------------------------------------------------------------------ *
  * Rate limits

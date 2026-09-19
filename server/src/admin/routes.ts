@@ -267,7 +267,7 @@ export function createAdminRouter(deps: {
 
     // The on_auth_user_created trigger has already inserted a profiles row by
     // the time createUser() resolves, so this update is safe to run right away.
-    await supabaseAdmin().from('profiles').update({ is_pro: true } as never).eq('id', data.user.id);
+    await supabaseAdmin().from('profiles').update({ is_pro: true, pro_expires_at: null } as never).eq('id', data.user.id);
 
     res.redirect(`/admin/users/${data.user.id}?created=1`);
   });
@@ -328,7 +328,8 @@ export function createAdminRouter(deps: {
     const { data: profile } = await supabaseAdmin().from('profiles').select('is_pro').eq('id', id).single<Pick<ProfileRow, 'is_pro'>>();
     // supabase-js has no generated Database type here, so .update()'s expected
     // argument type is `never` — same reason reads need `.single<T>()` above.
-    await supabaseAdmin().from('profiles').update({ is_pro: !profile?.is_pro } as never).eq('id', id);
+    const grantPro = !profile?.is_pro;
+    await supabaseAdmin().from('profiles').update({ is_pro: grantPro, pro_expires_at: null } as never).eq('id', id);
     res.redirect(`/admin/users/${id}`);
   });
 
