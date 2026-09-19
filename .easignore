@@ -1,0 +1,36 @@
+# Dependencies and local caches
+node_modules/
+.expo/
+.vercel/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Generated native projects and credentials
+ios/
+android/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Local configuration and logs
+.env
+.env.*
+!.env.example
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+
+# App Store review media and local media-generation tooling are not runtime assets
+app-store-assets/
+tools/preview-video-deps/
+scripts/create-app-previews.py
+scripts/make-ipad-store-screenshots.ps1
+scripts/make-ipad-store-shot.ps1
