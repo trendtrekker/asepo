@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: asepo
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REVENUECAT_WEBHOOK_AUTHORIZATION
+        sync: false
+      - key: KIE_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        sync: false

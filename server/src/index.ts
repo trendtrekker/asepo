@@ -36,7 +36,9 @@ import { supabaseAdmin } from './supabase-admin.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 /** Public origin used to build image URLs. Must be reachable by the phone. */
-const PUBLIC_URL = process.env.PUBLIC_URL?.trim() || `http://localhost:${PORT}`;
+const PUBLIC_URL = process.env.PUBLIC_URL?.trim()
+  || process.env.RENDER_EXTERNAL_URL?.trim()
+  || `http://localhost:${PORT}`;
 
 const app = express();
 app.use(cors());
@@ -61,6 +63,9 @@ type ImportJob = {
   createdAt: number;
   /** Who started it. Task ids are short and random, not unguessable. */
   userId: string;
+  freeQuotaCharged: boolean;
+  freeQuotaDayKey: string;
+  freeQuotaRefunded?: boolean;
 };
 
 type ImageJob = {
@@ -114,6 +119,7 @@ app.post('/webhooks/revenuecat', async (req, res) => {
       aliases?: unknown;
       entitlement_ids?: unknown;
       expiration_at_ms?: unknown;
+      period_type?: unknown;
     };
   };
   const event = body?.event;
@@ -152,12 +158,14 @@ app.post('/webhooks/revenuecat', async (req, res) => {
     : null;
   const ended = eventType === 'EXPIRATION' || eventType === 'REFUND';
   const isPro = entitled && !ended && expiresAt !== null && Date.parse(expiresAt) > Date.now();
+  const isTrial = isPro && event.period_type === 'TRIAL';
 
   try {
     const { error } = await supabaseAdmin().rpc('apply_revenuecat_subscription_event', {
       p_user_id: userId,
       p_is_pro: isPro,
       p_expires_at: expiresAt,
+      p_is_trial: isTrial,
       p_event_timestamp_ms: Math.trunc(eventTimestamp),
     } as never);
     if (error) {
@@ -176,7 +184,7 @@ app.post('/webhooks/revenuecat', async (req, res) => {
  * Rate limits
  *
  * Sized to be invisible to a person cooking and obstructive to a script.
- * A free account gets three imports total and Pro is unbounded, so twenty
+ * Free access allows three imports per UTC day for three days and Pro is unbounded, so twenty
  * imports an hour is far past any real session while still capping what a
  * single account can spend if someone automates it.
  *
@@ -191,6 +199,68 @@ const imageLimiter = createRateLimiter({ limit: 20, windowMs: HOUR_MS });
 const suggestLimiter = createRateLimiter({ limit: 30, windowMs: HOUR_MS });
 const proLlmLimiter = createRateLimiter({ limit: 30, windowMs: HOUR_MS });
 const pollLimiter = createRateLimiter({ limit: 900, windowMs: HOUR_MS });
+const freeAccessStatusLimiter = createRateLimiter({ limit: 60, windowMs: HOUR_MS });
+
+type DailyFreeAccessRow = {
+  allowed: boolean;
+  reason: 'OK' | 'PRO' | 'DAILY_LIMIT' | 'FREE_PERIOD_EXPIRED';
+  is_pro: boolean;
+  started_at: string;
+  expires_at: string;
+  day_key: string;
+  imports_today: number;
+  imports_remaining: number;
+};
+
+function dailyAccessIdentity(userId: string) {
+  return userId.startsWith('guest:') ? userId : `user:${userId}`;
+}
+
+async function readDailyFreeAccess(
+  req: express.Request,
+  identity: string,
+  startedAt: string | undefined,
+  consume: boolean
+): Promise<DailyFreeAccessRow | null> {
+  const suppliedGuestId = req.header('x-asepo-guest-id')?.trim();
+  const guestKey = suppliedGuestId && /^[0-9a-f-]{36}$/i.test(suppliedGuestId)
+    ? `guest:${suppliedGuestId}`
+    : identity.startsWith('guest:') ? identity : null;
+  const safeStartedAt = startedAt && Number.isFinite(Date.parse(startedAt))
+    ? new Date(startedAt).toISOString()
+    : null;
+
+  try {
+    const { data, error } = await supabaseAdmin().rpc('daily_free_access_status', {
+      p_identity_key: identity,
+      p_guest_key: guestKey,
+      p_started_at: safeStartedAt,
+      p_consume: consume,
+    } as never);
+    if (error) {
+      console.error('[free-access] usage lookup failed', error.message);
+      return null;
+    }
+    const rows = data as unknown as DailyFreeAccessRow[] | null;
+    return rows?.[0] ?? null;
+  } catch (error) {
+    console.error('[free-access] usage lookup failed', error);
+    return null;
+  }
+}
+
+function freeAccessResponse(row: DailyFreeAccessRow) {
+  return {
+    allowed: row.allowed,
+    reason: row.reason,
+    isPro: row.is_pro,
+    startedAt: row.started_at,
+    expiresAt: row.expires_at,
+    dayKey: row.day_key,
+    importsUsedToday: row.imports_today,
+    importsRemainingToday: row.imports_remaining,
+  };
+}
 
 /**
  * The gate every costed route opens with: establish who is calling, then
@@ -219,6 +289,18 @@ async function gate(
 
   return caller;
 }
+
+app.get('/free-access', async (req, res) => {
+  const caller = await gate(req, res, freeAccessStatusLimiter);
+  if (!caller) return;
+  const requestedStart = typeof req.query.startedAt === 'string' ? req.query.startedAt : undefined;
+  const status = await readDailyFreeAccess(req, dailyAccessIdentity(caller.userId), requestedStart, false);
+  if (!status) {
+    res.status(503).json({ error: 'Could not check free access. Try again shortly.' });
+    return;
+  }
+  res.json(freeAccessResponse(status));
+});
 
 /** Drops jobs older than an hour so the maps don't grow without bound. */
 setInterval(
@@ -283,6 +365,29 @@ app.post('/import', async (req, res) => {
   if (!caller) return;
 
   const source = req.body as { kind?: string; url?: string; text?: string; uri?: string };
+  const hasSource = (source?.kind === 'url' && typeof source.url === 'string' && Boolean(source.url.trim()))
+    || (source?.kind === 'text' && typeof source.text === 'string' && Boolean(source.text.trim()))
+    || (source?.kind === 'image' && typeof source.uri === 'string' && Boolean(source.uri.trim()))
+    || (source?.kind === 'idea' && typeof source.text === 'string' && Boolean(source.text.trim()));
+  if (!hasSource) {
+    res.status(400).json({ error: 'Send a recipe link, text, photo, or dish name.' });
+    return;
+  }
+
+  const freeAccess = await readDailyFreeAccess(req, dailyAccessIdentity(caller.userId), undefined, true);
+  if (!freeAccess) {
+    res.status(503).json({ error: 'Could not check free access. Try again shortly.' });
+    return;
+  }
+  if (!freeAccess.allowed) {
+    const dailyLimit = freeAccess.reason === 'DAILY_LIMIT';
+    res.status(403).json({
+      code: dailyLimit ? 'FREE_DAILY_LIMIT' : 'FREE_PERIOD_EXPIRED',
+      error: dailyLimit ? 'Daily free imports used' : 'Free access has ended',
+    });
+    return;
+  }
+
   const id = newId();
 
   const pipeline = pipelineFor(source);
@@ -293,6 +398,8 @@ app.post('/import', async (req, res) => {
     labels: pipeline,
     createdAt: Date.now(),
     userId: caller.userId,
+    freeQuotaCharged: !freeAccess.is_pro,
+    freeQuotaDayKey: freeAccess.day_key,
   });
   // Send every stage name up front so the UI can render the checklist correctly
   // without having to observe each transient step.
@@ -372,6 +479,18 @@ app.post('/import', async (req, res) => {
       job.recipe = recipe;
       job.status = 'ready';
     } catch (e) {
+      if (job.freeQuotaCharged && !job.freeQuotaRefunded) {
+        job.freeQuotaRefunded = true;
+        try {
+          const { error } = await supabaseAdmin().rpc('refund_daily_free_import', {
+            p_identity_key: dailyAccessIdentity(job.userId),
+            p_usage_day: job.freeQuotaDayKey,
+          } as never);
+          if (error) console.error(`[import ${id}] free quota refund failed`, error.message);
+        } catch (refundError) {
+          console.error(`[import ${id}] free quota refund failed`, refundError);
+        }
+      }
       job.status = 'failed';
       // This message is rendered verbatim on the import-failed screen, so only
       // ExtractionError — the class whose messages are written for users —
