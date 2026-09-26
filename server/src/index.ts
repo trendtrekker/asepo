@@ -9,7 +9,7 @@ import { authenticate, authenticateOrGuest, authenticatePro, isAuthFailure } fro
 import { imageCacheInput, readCache, writeCache, type CacheKind } from './cache.js';
 import { extractFromIdea, extractFromImage, extractFromText, extractFromUrl, ExtractionError, type ExtractedRecipe } from './extract.js';
 import { getCredits, getImageStatus, imagePromptFor, KieError, startImageGeneration } from './kie.js';
-import { estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError, suggestMeals } from './llm.js';
+import { chatMeals, estimateNutrition, healthifyRecipe, isLlmConfigured, LlmError, suggestMeals } from './llm.js';
 import { createRateLimiter } from './rate-limit.js';
 import { storeImage, storeImageFromDataUrl } from './storage.js';
 import { supabaseAdmin } from './supabase-admin.js';
@@ -535,6 +535,25 @@ app.get('/import/:id', async (req, res) => {
  * names dishes, the import limit is enforced when one is actually turned
  * into a saved recipe via the existing 'idea' import path.
  */
+app.post('/meal-chat', async (req, res) => {
+  const caller = await gate(req, res, suggestLimiter);
+  if (!caller) return;
+  const messages = req.body?.messages;
+  if (!Array.isArray(messages) || !messages.length || messages.length > 20 ||
+      messages.some((m) => !m || !['user', 'assistant'].includes(m.role) ||
+        typeof m.content !== 'string' || !m.content.trim() || m.content.length > 4000) ||
+      messages[messages.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'Send a conversation ending with your message.' });
+  }
+  try {
+    // Conversations may contain private preferences; never use the shared cache.
+    res.json(await chatMeals(messages));
+  } catch (e) {
+    console.error('[meal-chat] failed', e instanceof Error ? e.name : 'Unknown error');
+    res.status(503).json({ error: 'Meal chat is unavailable right now. Try again shortly.' });
+  }
+});
+
 app.post('/suggest-meals', async (req, res) => {
   if (!(await gate(req, res, suggestLimiter))) return;
 

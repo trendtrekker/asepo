@@ -237,8 +237,8 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
 
 /** Import from text the user pasted — same strategies, no fetching. */
 export async function extractFromText(text: string): Promise<ExtractedRecipe> {
-  if (!text || text.trim().length < 40) {
-    throw new ExtractionError('That text is too short to be a recipe');
+  if (!text?.trim()) {
+    throw new ExtractionError('Add some ingredients or recipe text first');
   }
 
   let llmFailure: LlmError | null = null;
