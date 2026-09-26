@@ -364,6 +364,7 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
   const timer = setTimeout(() => controller.abort(), 90_000);
 
   try {
+    for (let attempt = 0; attempt < 3; attempt++) {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
       signal: controller.signal,
@@ -371,8 +372,19 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
       body: JSON.stringify(body),
     });
     const payload = parseModelResponse(await response.text());
+    // Kie sometimes reports a transient server error inside an HTTP 200 body.
+    // Retry only explicit temporary failures, within the same 90-second budget.
+    const code = Number(payload?.code ?? payload?.error?.code);
+    const message = String(payload?.error?.message ?? payload?.msg ?? '');
+    const temporary = response.status === 429 || response.status >= 500 ||
+      code === 429 || code >= 500 || /server exception|temporarily unavailable|server_error/i.test(message);
+    if (temporary && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      continue;
+    }
     if (!response.ok) throw new LlmError(`Language model HTTP ${response.status}`);
     return payload;
+    }
   } catch (error) {
     if (error instanceof LlmError) throw error;
     throw new LlmError('Could not reach the language model');

@@ -4,6 +4,26 @@ import { parseModelResponse } from './model-response.js';
 import { chatMeals, extractWithImage } from './llm.js';
 import { extractFromText } from './extract.js';
 
+test('retries temporary provider failures but not invalid credentials', async (t) => {
+  const oldKey = process.env.LLM_API_KEY;
+  process.env.LLM_API_KEY = 'test-key';
+  t.after(() => { if (oldKey === undefined) delete process.env.LLM_API_KEY; else process.env.LLM_API_KEY = oldKey; });
+  let calls = 0;
+  let denied = false;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    if (denied) return new Response('{}', { status: 401 });
+    if (calls === 1) return new Response('{}', { status: 500 });
+    if (calls === 2) return new Response(JSON.stringify({ code: 500, msg: 'Server exception, please try again later' }));
+    return new Response(JSON.stringify({ output_text: JSON.stringify({ reply: 'Try chickpea salad.', suggestions: [] }) }));
+  });
+  assert.equal((await chatMeals([{ role: 'user', content: 'Quick dinner' }])).reply, 'Try chickpea salad.');
+  assert.equal(calls, 3);
+  denied = true;
+  await assert.rejects(chatMeals([{ role: 'user', content: 'Quick dinner' }]), /HTTP 401/);
+  assert.equal(calls, 4);
+});
+
 test('reads completed SSE response instead of empty initial response', () => {
   const response = { output: [{ content: [{ type: 'output_text', text: '{"title":"Rice"}' }] }] };
   const stream = [
