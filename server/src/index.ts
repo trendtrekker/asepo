@@ -439,7 +439,9 @@ app.post('/import', async (req, res) => {
       } else if (source.kind === 'text' && source.text) {
         recipe = await extractFromText(source.text);
       } else if (source.kind === 'image' && source.uri) {
-        recipe = await extractFromImage(source.uri);
+        // Keep large phone uploads out of the model request body.
+        const imageUrl = await storeImageFromDataUrl(source.uri);
+        recipe = await extractFromImage(imageUrl);
       } else if (source.kind === 'idea' && source.text) {
         recipe = await extractFromIdea(source.text);
       } else {
@@ -459,7 +461,7 @@ app.post('/import', async (req, res) => {
       // — a TikTok thumbnail carries x-signature and x-expires roughly two days
       // out — so storing the original would leave every imported recipe
       // pictureless within days. Same reason we re-host kie.ai's output.
-      if (recipe.imageUrl && !cached) {
+      if (recipe.imageUrl && !cached && !(source.kind === 'image' && recipe.imageUrl.startsWith('http'))) {
         try {
           // A photo import's "imageUrl" is the base64 data: URL the phone sent
           // us directly — nothing to fetch, just write the bytes we already have.

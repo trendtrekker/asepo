@@ -1,4 +1,5 @@
 import { fetchHtml, fetchJson, type FetchError } from './fetch-page.js';
+import { textFromWebVtt, tiktokPostFromHtml } from './tiktok.js';
 
 /**
  * Gathers whatever text a page can give us, so an extractor has something to
@@ -139,6 +140,27 @@ export async function gatherSourceText(url: URL): Promise<SourceText> {
   } catch (e) {
     // Instagram and TikTok frequently block server-side fetches outright.
     throw e as FetchError;
+  }
+
+  // Current TikTok oEmbed responses can contain only an iframe. The public
+  // page still carries the actual post caption and available subtitle tracks.
+  if (platform === 'TikTok') {
+    const post = tiktokPostFromHtml(html, url.pathname.match(/\/video\/(\d+)/)?.[1]);
+    if (post) {
+      let transcript = '';
+      if (post.subtitleUrl) {
+        try {
+          transcript = textFromWebVtt(await fetchHtml(new URL(post.subtitleUrl), 8_000));
+        } catch { /* The creator's caption remains useful if subtitles expire. */ }
+      }
+      return {
+        title: post.title,
+        text: [post.text, transcript ? `Spoken instructions:\n${transcript}` : ''].filter(Boolean).join('\n\n'),
+        author: post.author,
+        imageUrl: post.imageUrl,
+        platform,
+      };
+    }
   }
 
   const ogTitle = meta(html, 'og:title');

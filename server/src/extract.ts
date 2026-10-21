@@ -204,8 +204,8 @@ export async function extractFromUrl(rawUrl: string): Promise<ExtractedRecipe> {
         // unquantified ingredients ("Salt & pepper"), preserves ranges, and
         // keeps section labels out of the step list. Below JSON-LD, which is
         // authored by the site rather than inferred.
-        confidence: 0.9,
-        strategy: 'llm',
+        confidence: llm.inferred ? 0.55 : 0.9,
+        strategy: llm.inferred ? 'llm-inferred' : 'llm',
       };
     } catch (e) {
       // Fall through to the heuristic; a model outage shouldn't fail the import.
