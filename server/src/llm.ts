@@ -359,7 +359,7 @@ function parseJsonReply(raw: string): any {
   }
 }
 
-async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown, retryBody?: unknown): Promise<any> {
+async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown, retryBody?: unknown, validate?: (payload: any) => void): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
   let requestBody = body;
@@ -398,6 +398,17 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
       continue;
     }
     if (!response.ok) throw new LlmError(`Language model HTTP ${response.status}`);
+    if (validate) {
+      try { validate(payload); } catch (error) {
+        // A readable non-recipe is final. Invalid model output can be retried,
+        // using the same shared deadline and attempt count as transport errors.
+        if (attempt < 2 && !(error instanceof LlmError && error.userSafe)) {
+          requestBody = retryBody ?? body;
+          continue;
+        }
+        throw error;
+      }
+    }
     return payload;
     }
   } catch (error) {
@@ -629,6 +640,22 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
   const body = {
     model,
     stream: false,
+    text: { format: {
+      type: 'json_schema', name: 'photo_recipe', strict: true,
+      schema: {
+        type: 'object', additionalProperties: false,
+        required: ['isRecipe', 'inferred', 'title', 'servings', 'minutes', 'ingredients', 'instructions'],
+        properties: {
+          isRecipe: { type: 'boolean' }, inferred: { type: 'boolean' }, title: { type: 'string' },
+          servings: { type: ['number', 'null'] }, minutes: { type: ['number', 'null'] },
+          ingredients: { type: 'array', items: {
+            type: 'object', additionalProperties: false, required: ['qty', 'unit', 'name'],
+            properties: { qty: { type: 'string' }, unit: { type: 'string' }, name: { type: 'string' } },
+          } },
+          instructions: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    } },
     input: [
       { role: 'system', content: [{ type: 'input_text', text: VISION_SYSTEM_PROMPT }] },
       {
@@ -644,6 +671,7 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
   const fallbackModel = process.env.LLM_VISION_FALLBACK_MODEL?.trim() ||
     (baseUrl === 'https://api.kie.ai/codex/v1' && model === 'gpt-6-1-sol' ? 'gpt-6-sol' : undefined);
   const retryBody = fallbackModel && fallbackModel !== model ? { ...body, model: fallbackModel } : undefined;
-  const payload = await callModel(baseUrl, apiKey, '/responses', body, retryBody);
+  const payload = await callModel(baseUrl, apiKey, '/responses', body, retryBody,
+    (reply) => { toLlmRecipe(textFrom(reply), reply); });
   return toLlmRecipe(textFrom(payload), payload);
 }
