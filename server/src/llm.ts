@@ -379,6 +379,15 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
     const message = String(payload?.error?.message ?? payload?.msg ?? '');
     const temporary = response.status === 429 || response.status >= 500 ||
       code === 429 || code >= 500 || /server exception|temporarily unavailable|server_error/i.test(message);
+    if (temporary) {
+      // Never log request content, credentials or image URLs.
+      console.warn('[llm] temporary failure', JSON.stringify({
+        model: (requestBody as { model?: string })?.model,
+        attempt: attempt + 1, status: response.status, code: Number.isFinite(code) ? code : undefined,
+        errorType: String(payload?.error?.type ?? '').slice(0, 80),
+        message: message.replace(/https?:\/\/\S+|data:\S+|Bearer\s+\S+/gi, '[redacted]').slice(0, 240),
+      }));
+    }
     if (temporary && attempt < 2) {
       // Image-specific fallback stays within the existing attempt/time budget.
       // Account rate limits still retry the same model; changing it cannot help.
