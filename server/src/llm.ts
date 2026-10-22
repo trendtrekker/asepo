@@ -359,9 +359,10 @@ function parseJsonReply(raw: string): any {
   }
 }
 
-async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown): Promise<any> {
+async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown, retryBody?: unknown): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
+  let requestBody = body;
 
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -369,7 +370,7 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
       method: 'POST',
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     });
     const payload = parseModelResponse(await response.text());
     // Kie sometimes reports a transient server error inside an HTTP 200 body.
@@ -379,6 +380,11 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
     const temporary = response.status === 429 || response.status >= 500 ||
       code === 429 || code >= 500 || /server exception|temporarily unavailable|server_error/i.test(message);
     if (temporary && attempt < 2) {
+      // Image-specific fallback stays within the existing attempt/time budget.
+      // Account rate limits still retry the same model; changing it cannot help.
+      if (retryBody && response.status !== 429 && code !== 429) {
+        requestBody = retryBody;
+      }
       await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
       continue;
     }
@@ -611,7 +617,7 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
     throw new LlmError('Photo import needs LLM_PROTOCOL=responses — check server/.env');
   }
 
-  const payload = await callModel(baseUrl, apiKey, '/responses', {
+  const body = {
     model,
     stream: false,
     input: [
@@ -624,7 +630,11 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
         ],
       },
     ],
-  });
-
+  };
+  // Verified against the same provider, so no image is sent to a new service.
+  const fallbackModel = process.env.LLM_VISION_FALLBACK_MODEL?.trim() ||
+    (baseUrl === 'https://api.kie.ai/codex/v1' && model === 'gpt-6-1-sol' ? 'gpt-6-sol' : undefined);
+  const retryBody = fallbackModel && fallbackModel !== model ? { ...body, model: fallbackModel } : undefined;
+  const payload = await callModel(baseUrl, apiKey, '/responses', body, retryBody);
   return toLlmRecipe(textFrom(payload), payload);
 }

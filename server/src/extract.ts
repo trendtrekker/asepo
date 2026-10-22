@@ -329,7 +329,7 @@ export async function extractFromImage(imageDataUrl: string): Promise<ExtractedR
   }
 
   const llm = await extractWithImage(imageDataUrl).catch((e) => {
-    throw userFacing(e, 'Could not read a recipe from that photo.');
+    throw userFacing(e, 'Photo reading is temporarily unavailable. Please try again shortly.');
   });
 
   return {
