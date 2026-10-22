@@ -359,14 +359,15 @@ function parseJsonReply(raw: string): any {
   }
 }
 
-async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown, retryBody?: unknown, validate?: (payload: any) => void): Promise<any> {
+async function callModel(baseUrl: string, apiKey: string, path: string, body: unknown, retryBody?: unknown, validate?: (payload: any) => void, retryUrl?: string): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
   let requestBody = body;
+  let requestUrl = `${baseUrl}${path}`;
 
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetch(requestUrl, {
       method: 'POST',
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -393,6 +394,7 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
       // Account rate limits still retry the same model; changing it cannot help.
       if (retryBody && response.status !== 429 && code !== 429) {
         requestBody = retryBody;
+        requestUrl = retryUrl ?? requestUrl;
       }
       await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
       continue;
@@ -404,6 +406,7 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
         // using the same shared deadline and attempt count as transport errors.
         if (attempt < 2 && !(error instanceof LlmError && error.userSafe)) {
           requestBody = retryBody ?? body;
+          requestUrl = retryUrl ?? requestUrl;
           continue;
         }
         throw error;
@@ -667,11 +670,22 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
       },
     ],
   };
-  // Verified against the same provider, so no image is sent to a new service.
-  const fallbackModel = process.env.LLM_VISION_FALLBACK_MODEL?.trim() ||
-    (baseUrl === 'https://api.kie.ai/codex/v1' && model === 'gpt-6-1-sol' ? 'gpt-6-sol' : undefined);
-  const retryBody = fallbackModel && fallbackModel !== model ? { ...body, model: fallbackModel } : undefined;
+  // A distinct, documented Kie route avoids repeatedly hitting the same
+  // Responses gateway outage. Keep custom provider routing unchanged.
+  const fallbackModel = process.env.LLM_VISION_FALLBACK_MODEL?.trim();
+  const alternateRoute = !fallbackModel && baseUrl === 'https://api.kie.ai/codex/v1';
+  const retryBody = alternateRoute ? {
+    reasoning_effort: 'low',
+    messages: [
+      { role: 'system', content: [{ type: 'text', text: VISION_SYSTEM_PROMPT }] },
+      { role: 'user', content: [
+        { type: 'text', text: 'Read the recipe in this photo.' },
+        { type: 'image_url', image_url: { url: imageDataUrl } },
+      ] },
+    ],
+  } : fallbackModel && fallbackModel !== model ? { ...body, model: fallbackModel } : undefined;
   const payload = await callModel(baseUrl, apiKey, '/responses', body, retryBody,
-    (reply) => { toLlmRecipe(textFrom(reply), reply); });
+    (reply) => { toLlmRecipe(textFrom(reply), reply); },
+    alternateRoute ? 'https://api.kie.ai/gpt-5-2/v1/chat/completions' : undefined);
   return toLlmRecipe(textFrom(payload), payload);
 }
