@@ -98,12 +98,18 @@ export class LlmError extends Error {
 
 type Protocol = 'responses' | 'messages' | 'chat';
 
-const config = () => ({
-  baseUrl: (process.env.LLM_BASE_URL ?? 'https://api.kie.ai/codex/v1').replace(/\/$/, ''),
-  model: process.env.LLM_MODEL ?? 'gpt-5-5',
-  protocol: (process.env.LLM_PROTOCOL ?? 'responses') as Protocol,
-  apiKey: (process.env.LLM_API_KEY ?? process.env.KIE_API_KEY ?? '').trim(),
-});
+const config = () => {
+  const baseUrl = (process.env.LLM_BASE_URL ?? 'https://api.kie.ai/openai/v1').replace(/\/$/, '');
+  const configuredModel = process.env.LLM_MODEL ?? 'gpt-6.1-sol';
+  // The current Kie Responses listing uses a dotted version in this slug.
+  const model = baseUrl === 'https://api.kie.ai/openai/v1' && configuredModel === 'gpt-6-1-sol'
+    ? 'gpt-6.1-sol' : configuredModel;
+  return {
+    baseUrl, model,
+    protocol: (process.env.LLM_PROTOCOL ?? 'responses') as Protocol,
+    apiKey: (process.env.LLM_API_KEY ?? process.env.KIE_API_KEY ?? '').trim(),
+  };
+};
 
 export function isLlmConfigured(): boolean {
   return Boolean(config().apiKey);
@@ -673,7 +679,7 @@ export async function extractWithImage(imageDataUrl: string): Promise<LlmRecipe>
   // A distinct, documented Kie route avoids repeatedly hitting the same
   // Responses gateway outage. Keep custom provider routing unchanged.
   const fallbackModel = process.env.LLM_VISION_FALLBACK_MODEL?.trim();
-  const alternateRoute = !fallbackModel && baseUrl === 'https://api.kie.ai/codex/v1';
+  const alternateRoute = !fallbackModel && ['https://api.kie.ai/codex/v1', 'https://api.kie.ai/openai/v1'].includes(baseUrl);
   const retryBody = alternateRoute ? {
     reasoning_effort: 'low',
     messages: [
