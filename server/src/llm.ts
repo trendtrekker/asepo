@@ -373,13 +373,28 @@ async function callModel(baseUrl: string, apiKey: string, path: string, body: un
 
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-    const payload = parseModelResponse(await response.text());
+    // Give the primary photo route 20 seconds, including body download.
+    // The independent fallback still shares the overall 90-second deadline.
+    const primaryDeadline = attempt === 0 && retryUrl ? AbortSignal.timeout(20_000) : undefined;
+    let response: Response;
+    let payload: any;
+    try {
+      response = await fetch(requestUrl, {
+        method: 'POST',
+        signal: primaryDeadline ? AbortSignal.any([controller.signal, primaryDeadline]) : controller.signal,
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+      payload = parseModelResponse(await response.text());
+    } catch (error) {
+      if (primaryDeadline?.aborted && !controller.signal.aborted && retryBody && retryUrl) {
+        console.warn('[llm] primary photo deadline reached; using fallback');
+        requestBody = retryBody;
+        requestUrl = retryUrl;
+        continue;
+      }
+      throw error;
+    }
     // Kie sometimes reports a transient server error inside an HTTP 200 body.
     // Retry only explicit temporary failures, within the same 90-second budget.
     const code = Number(payload?.code ?? payload?.error?.code);
